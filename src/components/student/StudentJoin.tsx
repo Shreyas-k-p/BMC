@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { ArrowRight, User, GraduationCap } from 'lucide-react';
+import { ArrowRight, User, GraduationCap, AlertTriangle, Loader2 } from 'lucide-react';
 import { Department } from '../../types';
 
 interface StudentJoinProps {
   joinCode: string;
-  onJoin: (name: string, dept: Department) => void;
+  onJoin: (name: string, dept: Department) => Promise<void> | void;
 }
 
 // Exactly the 8 departments specified in requirement 5
@@ -14,13 +14,22 @@ export const StudentJoin: React.FC<StudentJoinProps> = ({ joinCode, onJoin }) =>
   const [name, setName] = useState('');
   const [department, setDepartment] = useState<Department>('AI');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
-    onJoin(name.trim(), department);
+    setErrorMessage(null);
+
+    try {
+      await onJoin(name.trim(), department);
+    } catch (err: any) {
+      console.error('Error joining session:', err);
+      setErrorMessage(err.message || 'Unable to join session. Please try again.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -41,6 +50,13 @@ export const StudentJoin: React.FC<StudentJoinProps> = ({ joinCode, onJoin }) =>
       {/* Main Join Form */}
       <form onSubmit={handleSubmit} className="my-auto space-y-4 max-w-sm w-full mx-auto">
         <div className="p-6 rounded-3xl bg-slate-900/90 border border-sky-500/25 shadow-2xl backdrop-blur-xl space-y-5">
+          {errorMessage && (
+            <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-mono font-bold text-sky-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
               <User className="w-3.5 h-3.5" /> Name
@@ -77,8 +93,17 @@ export const StudentJoin: React.FC<StudentJoinProps> = ({ joinCode, onJoin }) =>
             disabled={!name.trim() || isSubmitting}
             className="w-full py-4 px-4 rounded-xl bg-gradient-to-r from-sky-400 to-cyan-400 text-slate-950 font-display font-black text-sm tracking-wider uppercase flex items-center justify-center gap-2 shadow-xl shadow-sky-500/25 hover:scale-[1.01] active:scale-[0.98] transition disabled:opacity-40"
           >
-            <span>JOIN SESSION</span>
-            <ArrowRight className="w-4 h-4" />
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                <span>JOINING SESSION...</span>
+              </>
+            ) : (
+              <>
+                <span>JOIN SESSION</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
         </div>
       </form>

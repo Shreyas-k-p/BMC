@@ -73,24 +73,147 @@ class RealtimeSessionManager {
   private initSupabaseSubscriptions() {
     if (!supabase) return;
     try {
+      // 1. Initial Database Fetch
+      this.pullFromSupabase();
+
+      // 2. Realtime Subscriptions for participants, sessions, lobby_messages, groups
       supabase
-        .channel('public:sessions')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
-          this.pullFromSupabase();
+        .channel('bmc_live_realtime_channel')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, (payload) => {
+          this.handleParticipantRealtimeEvent(payload);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_messages' }, (payload) => {
+          this.handleLobbyMessageRealtimeEvent(payload);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, (payload) => {
+          this.handleSessionRealtimeEvent(payload);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, (payload) => {
+          this.handleGroupRealtimeEvent(payload);
         })
         .subscribe();
-    } catch(e) {}
+    } catch(e) {
+      console.error('Supabase subscription error:', e);
+    }
+  }
+
+  private handleParticipantRealtimeEvent(payload: any) {
+    if (!payload.new && !payload.old) return;
+    const item = payload.new || payload.old;
+    if (item && item.session_id === this.data.session.id) {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        const index = this.data.participants.findIndex(p => p.id === item.id);
+        if (index >= 0) {
+          this.data.participants[index] = item as Participant;
+        } else {
+          this.data.participants.push(item as Participant);
+        }
+      } else if (payload.eventType === 'DELETE') {
+        this.data.participants = this.data.participants.filter(p => p.id !== item.id);
+      }
+      this.saveAndBroadcast();
+    }
+  }
+
+  private handleLobbyMessageRealtimeEvent(payload: any) {
+    if (payload.eventType === 'INSERT' && payload.new && payload.new.session_id === this.data.session.id) {
+      const msg = payload.new as LobbyMessage;
+      if (!this.data.lobbyMessages) this.data.lobbyMessages = [];
+      if (!this.data.lobbyMessages.some(m => m.id === msg.id)) {
+        this.data.lobbyMessages.push(msg);
+        if (this.data.lobbyMessages.length > 30) {
+          this.data.lobbyMessages = this.data.lobbyMessages.slice(-30);
+        }
+        this.saveAndBroadcast();
+      }
+    }
+  }
+
+  private handleSessionRealtimeEvent(payload: any) {
+    if (payload.new && payload.new.id === this.data.session.id) {
+      this.data.session.status = payload.new.status as SessionState;
+      if (payload.new.status !== 'LOBBY' && payload.new.status !== 'JOINING') {
+        this.data.lobbyMessages = [];
+      }
+      this.saveAndBroadcast();
+    }
+  }
+
+  private handleGroupRealtimeEvent(payload: any) {
+    if (payload.new && payload.new.session_id === this.data.session.id) {
+      this.pullFromSupabase();
+    }
   }
 
   private async pullFromSupabase() {
     if (!supabase) return;
     try {
-      const { data: session } = await supabase.from('sessions').select('*').order('created_at', { ascending: false }).limit(1).single();
+      // Fetch session by current ID or matching join code
+      const { data: session } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', this.data.session.id)
+        .single();
+
       if (session) {
-        this.data.session.status = session.status as SessionState;
-        this.notifyListeners();
+        this.data.session = {
+          ...this.data.session,
+          ...session
+        };
       }
-    } catch(e) {}
+
+      // Initial Fetch of Participants for current session
+      const { data: dbParticipants } = await supabase
+        .from('participants')
+        .select('*')
+        .eq('session_id', this.data.session.id)
+        .order('joined_at', { ascending: true });
+
+      if (dbParticipants) {
+        this.data.participants = dbParticipants as Participant[];
+      }
+
+      // Initial Fetch of Lobby Messages for current session
+      const { data: dbMessages } = await supabase
+        .from('lobby_messages')
+        .select('*')
+        .eq('session_id', this.data.session.id)
+        .order('created_at', { ascending: true });
+
+      if (dbMessages) {
+        this.data.lobbyMessages = dbMessages as LobbyMessage[];
+      }
+
+      this.saveAndBroadcast();
+    } catch(e) {
+      console.error('Error pulling initial data from Supabase:', e);
+    }
+  }
+
+  private async ensureSessionExistsInSupabase() {
+    if (!supabase) return;
+    try {
+      const { data: existing } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('id', this.data.session.id)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from('sessions').insert({
+          id: this.data.session.id,
+          join_code: this.data.session.join_code,
+          status: this.data.session.status,
+          host_key: this.data.session.host_key,
+          created_at: this.data.session.created_at,
+          preparation_duration: this.data.session.preparation_duration,
+          study_duration: this.data.session.study_duration,
+          presentation_duration: this.data.session.presentation_duration
+        });
+      }
+    } catch(e) {
+      console.error('Error ensuring session in Supabase:', e);
+    }
   }
 
   private loadFromStorage(): StoreData | null {
@@ -138,23 +261,45 @@ class RealtimeSessionManager {
 
   // --- ACTIONS ---
 
-  public createNewSession(joinCode?: string) {
+  public async createNewSession(joinCode?: string) {
     const code = joinCode?.toUpperCase() || 'BMC' + Math.floor(100 + Math.random() * 900);
     this.data = getDefaultStore(code);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('sessions').insert({
+          id: this.data.session.id,
+          join_code: this.data.session.join_code,
+          status: this.data.session.status,
+          host_key: this.data.session.host_key,
+          created_at: this.data.session.created_at
+        });
+      } catch(e) {
+        console.error('Error inserting new session in Supabase:', e);
+      }
+    }
+
     this.saveAndBroadcast();
   }
 
-  public setSessionState(status: SessionState) {
+  public async setSessionState(status: SessionState) {
     this.data.session.status = status;
-    // When session state transitions away from LOBBY / JOINING (e.g. host clicks MAKE GROUPS -> GROUPING),
-    // immediately clear all visible floating messages and reject future message inserts!
     if (status !== 'LOBBY' && status !== 'JOINING') {
       this.data.lobbyMessages = [];
     }
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('sessions').update({ status }).eq('id', this.data.session.id);
+      } catch(e) {
+        console.error('Error updating session status in Supabase:', e);
+      }
+    }
+
     this.saveAndBroadcast();
   }
 
-  public sendLobbyMessage(participantId: string, participantName: string, text: string) {
+  public async sendLobbyMessage(participantId: string, participantName: string, text: string) {
     // STRICT RULE: Students can send messages ONLY while session state is LOBBY or JOINING
     if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
       return;
@@ -172,12 +317,22 @@ class RealtimeSessionManager {
       created_at: new Date().toISOString()
     };
 
-    if (!this.data.lobbyMessages) {
-      this.data.lobbyMessages = [];
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('lobby_messages').insert({
+        id: msg.id,
+        session_id: msg.session_id,
+        participant_id: msg.participant_id,
+        participant_name: msg.participant_name,
+        message: msg.message,
+        created_at: msg.created_at
+      });
+      if (error) {
+        console.error('Supabase message insert error:', error);
+      }
     }
 
+    if (!this.data.lobbyMessages) this.data.lobbyMessages = [];
     this.data.lobbyMessages.push(msg);
-    // Limit store memory to recent 30 messages
     if (this.data.lobbyMessages.length > 30) {
       this.data.lobbyMessages = this.data.lobbyMessages.slice(-30);
     }
@@ -185,31 +340,72 @@ class RealtimeSessionManager {
     this.saveAndBroadcast();
   }
 
-  public addParticipant(name: string, department: Department): Participant {
+  public async addParticipant(name: string, department: Department): Promise<Participant> {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw new Error('Name is required.');
+    }
+
+    // 1. Session Validation
+    if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
+      throw new Error('Session is no longer accepting new participants.');
+    }
+
+    // 2. Check duplicate participant identity in current session
+    let existing = this.data.participants.find(
+      p => p.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (existing) {
+      existing.department = department;
+      existing.status = 'ONLINE';
+      existing.last_seen_at = new Date().toISOString();
+      this.saveAndBroadcast();
+      return existing;
+    }
+
     const participant: Participant = {
-      id: 'p_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      id: 'p_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
       session_id: this.data.session.id,
-      name: name.trim(),
+      name: trimmedName,
       department: department,
       status: 'ONLINE',
-      joined_at: new Date().toISOString()
+      joined_at: new Date().toISOString(),
+      last_seen_at: new Date().toISOString()
     };
 
-    // Remove existing if identical name
-    this.data.participants = this.data.participants.filter(
-      p => p.name.toLowerCase() !== name.trim().toLowerCase()
-    );
+    // 3. Database Insert via Supabase
+    if (isSupabaseConfigured && supabase) {
+      await this.ensureSessionExistsInSupabase();
+
+      const { error } = await supabase.from('participants').insert({
+        id: participant.id,
+        session_id: participant.session_id,
+        name: participant.name,
+        department: participant.department,
+        status: participant.status,
+        joined_at: participant.joined_at,
+        last_seen_at: participant.last_seen_at,
+        is_demo: false
+      });
+
+      if (error) {
+        console.error('Supabase participant insert error:', error);
+        throw new Error(error.message || 'Unable to join session. Please try again.');
+      }
+    }
+
+    // 4. Update local state & broadcast
     this.data.participants.push(participant);
     this.saveAndBroadcast();
-
     return participant;
   }
 
   public addDemoStudents(count: number = 30) {
     const demos = generateDemoParticipants(count);
-    demos.forEach((d) => {
+    demos.forEach(async (d) => {
       const participant: Participant = {
-        id: 'p_demo_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+        id: 'p_demo_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
         session_id: this.data.session.id,
         name: d.name.trim(),
         department: d.department,
@@ -217,11 +413,27 @@ class RealtimeSessionManager {
         is_demo: true,
         joined_at: new Date().toISOString()
       };
+
       this.data.participants = this.data.participants.filter(
         p => p.name.toLowerCase() !== d.name.trim().toLowerCase()
       );
       this.data.participants.push(participant);
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('participants').insert({
+            id: participant.id,
+            session_id: participant.session_id,
+            name: participant.name,
+            department: participant.department,
+            status: participant.status,
+            joined_at: participant.joined_at,
+            is_demo: true
+          });
+        } catch(e) {}
+      }
     });
+
     this.saveAndBroadcast();
   }
 
@@ -229,11 +441,9 @@ class RealtimeSessionManager {
     const presentingGroup = this.data.groups.find(g => g.id === groupId);
     if (!presentingGroup) return;
 
-    // Eligible evaluator teams: all teams except the presenting team
     const eligibleGroups = this.data.groups.filter(g => g.id !== groupId);
 
     eligibleGroups.forEach((evalGroup) => {
-      // Find team captain or pick any member if captain not set
       const captainId = evalGroup.captain_id || evalGroup.members[0]?.id;
       if (!captainId) return;
 
@@ -258,6 +468,11 @@ class RealtimeSessionManager {
         g.captain_name = null;
       }
     });
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('participants').delete().eq('id', participantId).then(() => {}, () => {});
+    }
+
     this.saveAndBroadcast();
   }
 
@@ -265,7 +480,6 @@ class RealtimeSessionManager {
     const newGroups = generateBalancedGroups(this.data.session.id, this.data.participants);
     this.data.groups = newGroups;
 
-    // Update participants with their group IDs
     newGroups.forEach(g => {
       g.members.forEach(m => {
         const p = this.data.participants.find(part => part.id === m.id);
@@ -282,7 +496,6 @@ class RealtimeSessionManager {
     this.saveAndBroadcast();
   }
 
-  // --- CAPTAIN SELECTION ---
   public selectTeamCaptain(groupId: string, participantId: string) {
     const group = this.data.groups.find(g => g.id === groupId);
     if (!group) return;
@@ -293,7 +506,6 @@ class RealtimeSessionManager {
     group.captain_id = member.id;
     group.captain_name = member.name;
 
-    // Update is_captain on all participants
     this.data.participants.forEach(p => {
       if (p.group_id === groupId) {
         p.is_captain = p.id === member.id;
@@ -317,7 +529,6 @@ class RealtimeSessionManager {
     return this.data.groups;
   }
 
-  // --- 15-MINUTE BMC PREPARATION TIMER ---
   public startPrepTimer() {
     this.data.session.preparation_started_at = new Date().toISOString();
     this.data.session.status = 'PREPARATION';
@@ -336,7 +547,6 @@ class RealtimeSessionManager {
     this.saveAndBroadcast();
   }
 
-  // --- 10-MINUTE PRODUCT STUDY TIMER ---
   public startStudyTimer() {
     this.data.session.study_started_at = new Date().toISOString();
     this.data.session.status = 'STUDY_TIME';
@@ -355,7 +565,6 @@ class RealtimeSessionManager {
     this.saveAndBroadcast();
   }
 
-  // --- PRESENTATIONS & 3-MIN TIMER ---
   public generatePresentationOrder(): Group[] {
     const shuffled = [...this.data.groups].sort(() => Math.random() - 0.5);
     shuffled.forEach((g, idx) => {
@@ -395,7 +604,6 @@ class RealtimeSessionManager {
     this.saveAndBroadcast();
   }
 
-  // --- CAPTAIN SCORING (0 to 10, NO HOST SCORE) ---
   public submitPeerScore(groupId: string, captainParticipantId: string, score: number) {
     const captain = this.data.participants.find(p => p.id === captainParticipantId);
     if (!captain || !captain.is_captain) return;
@@ -403,7 +611,6 @@ class RealtimeSessionManager {
     const captainGroup = this.data.groups.find(g => g.id === captain.group_id);
     if (!captainGroup) return;
 
-    // Captain cannot rate their own team
     if (captainGroup.id === groupId) return;
 
     this.submitCaptainScore(
@@ -422,12 +629,11 @@ class RealtimeSessionManager {
     evaluatorTeamName: string,
     score: number
   ) {
-    // Prevent duplicate scoring by the same captain for this team
     this.data.peerScores = this.data.peerScores.filter(
       ps => !(ps.group_id === groupId && ps.evaluator_participant_id === captainParticipantId)
     );
 
-    this.data.peerScores.push({
+    const newScore: PeerScore = {
       id: 'score_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       session_id: this.data.session.id,
       group_id: groupId,
@@ -436,7 +642,13 @@ class RealtimeSessionManager {
       evaluator_team_name: evaluatorTeamName,
       score: Math.min(10, Math.max(0, score)),
       created_at: new Date().toISOString()
-    });
+    };
+
+    this.data.peerScores.push(newScore);
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('peer_scores').insert(newScore).then(() => {}, () => {});
+    }
 
     this.recalculateGroupScores(groupId);
     this.saveAndBroadcast();
@@ -449,13 +661,11 @@ class RealtimeSessionManager {
     const groupPeerScores = this.data.peerScores.filter(ps => ps.group_id === groupId);
     if (groupPeerScores.length > 0) {
       const sum = groupPeerScores.reduce((acc, curr) => acc + curr.score, 0);
-      // Average strictly of captain marks (out of 10)
       group.final_score = parseFloat((sum / groupPeerScores.length).toFixed(1));
     }
   }
 
   public revealLeaderboard() {
-    // Fill default realistic scores (0–10 scale) for any unrated teams
     this.data.groups.forEach(g => {
       if (!g.final_score) {
         const rand = parseFloat((7.8 + Math.random() * 1.8).toFixed(1));

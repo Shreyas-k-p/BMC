@@ -36,13 +36,46 @@ export const StudentLobby: React.FC<StudentLobbyProps> = ({
       {/* Live Floating Message Bubbles Layer (Only active in LOBBY/JOINING) */}
       {isMessagingAllowed && <LobbyFloatingMessages messages={messages} maxVisible={6} />}
 
-      {/* Top Header */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-4 relative z-10">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="font-mono text-xs font-bold text-emerald-400 uppercase tracking-wider">CONNECTED</span>
+      {/* Top Header & TOP Message Input Bar */}
+      <div className="space-y-3 relative z-20">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="font-mono text-xs font-bold text-emerald-400 uppercase tracking-wider">CONNECTED</span>
+          </div>
+          <span className="text-xs font-mono text-slate-400">SESSION: {joinCode}</span>
         </div>
-        <span className="text-xs font-mono text-slate-400">SESSION: {joinCode}</span>
+
+        {/* Compact TOP Message Input Bar (Strictly ONLY rendered in LOBBY / JOINING stage) */}
+        {isMessagingAllowed && (
+          <form onSubmit={handleSend} className="pt-1">
+            <div className="flex items-center justify-between text-[11px] font-mono text-sky-400 font-bold uppercase tracking-wider mb-1.5 px-1">
+              <span className="flex items-center gap-1">
+                <MessageSquare className="w-3.5 h-3.5" /> 💬 LIVE MESSAGES
+              </span>
+              <span className="text-[10px] text-slate-500 font-normal">FLOATS ON STAGE</span>
+            </div>
+
+            <div className="flex items-center gap-2 p-2 rounded-2xl bg-slate-900/90 border border-sky-400/35 shadow-2xl backdrop-blur-xl">
+              <input
+                type="text"
+                maxLength={120}
+                placeholder="Type your message..."
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                className="flex-1 px-3 py-2 bg-transparent text-xs sm:text-sm text-white focus:outline-none placeholder:text-slate-500 font-medium"
+              />
+              <button
+                type="submit"
+                disabled={!inputText.trim()}
+                className="py-2 px-4 rounded-xl bg-gradient-to-r from-sky-400 to-cyan-400 hover:from-sky-300 hover:to-cyan-300 disabled:opacity-40 text-slate-950 font-display font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow"
+              >
+                <span>SEND</span>
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Main Status Display */}
@@ -76,33 +109,9 @@ export const StudentLobby: React.FC<StudentLobbyProps> = ({
         </div>
       </div>
 
-      {/* Bottom Message Input Bar (Strictly ONLY rendered in LOBBY / JOINING stage) */}
-      {isMessagingAllowed ? (
-        <form onSubmit={handleSend} className="relative z-20 pb-2">
-          <div className="flex items-center gap-2 p-2 rounded-2xl bg-slate-900/90 border border-sky-400/30 shadow-2xl backdrop-blur-xl">
-            <input
-              type="text"
-              maxLength={120}
-              placeholder="Send a live message..."
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              className="flex-1 px-3 py-2 bg-transparent text-sm text-white focus:outline-none placeholder:text-slate-500 font-medium"
-            />
-            <button
-              type="submit"
-              disabled={!inputText.trim()}
-              className="py-2 px-4 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-40 text-slate-950 font-display font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition shadow"
-            >
-              <span>SEND</span>
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </form>
-      ) : (
-        <div className="text-center text-[11px] text-slate-600 font-mono pb-2">
-          BMC LIVE Classroom
-        </div>
-      )}
+      <div className="text-center text-[11px] text-slate-600 font-mono pb-2 relative z-10">
+        BMC LIVE Classroom
+      </div>
     </div>
   );
 };

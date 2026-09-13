@@ -95,8 +95,8 @@ export const App: React.FC = () => {
   };
 
   // --- STUDENT ACTIONS ---
-  const handleStudentJoin = (name: string, dept: Department) => {
-    const p = actions.addParticipant(name, dept);
+  const handleStudentJoin = async (name: string, dept: Department) => {
+    const p = await actions.addParticipant(name, dept);
     setCurrentParticipant(p);
     localStorage.setItem('bmc_live_my_participant', JSON.stringify(p));
   };
