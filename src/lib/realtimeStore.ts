@@ -56,6 +56,32 @@ function toDbStatus(status: SessionState): string {
   }
 }
 
+function fromDbStatus(dbStatus: string | undefined, currentUiStatus: SessionState): SessionState {
+  if (!dbStatus) return currentUiStatus;
+
+  // RULE: When HOST local state is JOINING and Supabase returns LOBBY, DO NOT overwrite local JOINING state.
+  if (dbStatus === 'LOBBY') {
+    return currentUiStatus === 'JOINING' ? 'JOINING' : 'LOBBY';
+  }
+
+  if (dbStatus === 'PREPARATION') return 'PREPARATION';
+  if (dbStatus === 'STUDY') return 'STUDY_TIME';
+  if (dbStatus === 'PRESENTATION') {
+    return (currentUiStatus === 'PRESENTATION_ORDER' || currentUiStatus === 'PRESENTATION')
+      ? currentUiStatus
+      : 'PRESENTATION';
+  }
+  if (dbStatus === 'SCORING') return 'SCORING';
+  if (dbStatus === 'LEADERBOARD') {
+    return (currentUiStatus === 'FINAL_RESULTS' || currentUiStatus === 'COMPLETED')
+      ? currentUiStatus
+      : 'LEADERBOARD';
+  }
+  if (dbStatus === 'COMPLETED') return 'COMPLETED';
+
+  return (dbStatus as SessionState) || currentUiStatus;
+}
+
 function getDefaultStore(joinCode = 'BMC2026'): StoreData {
   return {
     session: {
@@ -172,14 +198,15 @@ class RealtimeSessionManager {
 
   private handleSessionRealtimeEvent(payload: any) {
     if (payload.new && payload.new.id === this.data.session.id) {
-      const dbStatus = payload.new.status as SessionState;
-      const currentUiStatus = this.data.session.status;
-      if (dbStatus === 'LOBBY' && currentUiStatus === 'JOINING') {
-        // Preserve JOINING UI state when DB reports LOBBY
-        return;
-      }
-      this.data.session.status = dbStatus;
-      if (dbStatus !== 'LOBBY') {
+      const dbStatus = payload.new.status as string;
+      console.log('[BMC] REALTIME SESSION EVENT, DB SESSION STATUS:', dbStatus);
+      console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
+
+      const mergedStatus = fromDbStatus(dbStatus, this.data.session.status);
+      this.data.session.status = mergedStatus;
+      console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
+
+      if (mergedStatus !== 'LOBBY' && mergedStatus !== 'JOINING') {
         this.data.lobbyMessages = [];
       }
       this.saveAndBroadcast();
@@ -206,13 +233,18 @@ class RealtimeSessionManager {
         .maybeSingle();
 
       if (session) {
-        const currentUiStatus = this.data.session.status;
+        console.log('[BMC] DB SESSION STATUS:', session.status);
+        console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
+
+        const mergedStatus = fromDbStatus(session.status, this.data.session.status);
         this.data.session = {
           ...this.data.session,
           ...session,
           code: session.code || activeCode,
-          status: (session.status === 'LOBBY' && currentUiStatus === 'JOINING') ? 'JOINING' : (session.status || currentUiStatus)
+          status: mergedStatus
         };
+
+        console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
       }
 
       // 2. Fetch all participants for current session_id (BOTH real and demo)
@@ -316,13 +348,18 @@ class RealtimeSessionManager {
         console.log('[BMC] SYNC SESSION RESULT', { data: existingSession, error: syncErr });
 
         if (existingSession) {
-          const currentUiStatus = this.data.session.status;
+          console.log('[BMC] DB SESSION STATUS:', existingSession.status);
+          console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
+
+          const mergedStatus = fromDbStatus(existingSession.status, this.data.session.status);
           this.data.session = {
             ...this.data.session,
             ...existingSession,
             code: existingSession.code || code,
-            status: (existingSession.status === 'LOBBY' && currentUiStatus === 'JOINING') ? 'JOINING' : (existingSession.status || currentUiStatus)
+            status: mergedStatus
           };
+
+          console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
           console.log(`[BMC] ${mode} SESSION ID:\n${existingSession.id}`);
           await this.pullFromSupabase();
           return existingSession as Session;
@@ -378,7 +415,8 @@ class RealtimeSessionManager {
       throw new Error(`Unable to create session: ${error?.message || 'Database rejected insertion'}`);
     }
 
-    // Only if error === null AND data exists:
+    console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
+
     // Set status to JOINING explicitly for the Host UI
     this.data = {
       session: {
@@ -393,6 +431,7 @@ class RealtimeSessionManager {
       lobbyMessages: []
     };
 
+    console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
     console.log('[BMC] SESSION CREATED SUCCESS', { id: data.id, code: data.code, status: this.data.session.status });
 
     this.saveAndBroadcast();
@@ -500,14 +539,18 @@ class RealtimeSessionManager {
       throw new Error('Session not found or has not been started by the host.');
     }
 
-    const currentUiStatus = this.data.session.status;
+    console.log('[BMC] DB SESSION STATUS:', dbSession.status);
+    console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
+
+    const mergedStatus = fromDbStatus(dbSession.status, this.data.session.status);
     this.data.session = {
       ...this.data.session,
       ...dbSession,
       code: dbSession.code || codeToUse,
-      status: (dbSession.status === 'LOBBY' && currentUiStatus === 'JOINING') ? 'JOINING' : (dbSession.status || currentUiStatus)
+      status: mergedStatus
     };
 
+    console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
     console.log(`[BMC] STUDENT SESSION ID:\n${this.data.session.id}`);
 
     // 2. Session Validation (Status must be LOBBY or JOINING in UI)
