@@ -148,12 +148,14 @@ class RealtimeSessionManager {
   private async pullFromSupabase() {
     if (!supabase) return;
     try {
-      // Fetch session by current ID or matching join code
+      // 1. Fetch session matching current join code or ID
       const { data: session } = await supabase
         .from('sessions')
         .select('*')
-        .eq('id', this.data.session.id)
-        .single();
+        .eq('join_code', this.data.session.join_code)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (session) {
         this.data.session = {
@@ -162,7 +164,7 @@ class RealtimeSessionManager {
         };
       }
 
-      // Initial Fetch of Participants for current session
+      // 2. Fetch all participants for current session_id (BOTH real and demo)
       const { data: dbParticipants } = await supabase
         .from('participants')
         .select('*')
@@ -173,7 +175,7 @@ class RealtimeSessionManager {
         this.data.participants = dbParticipants as Participant[];
       }
 
-      // Initial Fetch of Lobby Messages for current session
+      // 3. Fetch all lobby messages for current session_id
       const { data: dbMessages } = await supabase
         .from('lobby_messages')
         .select('*')
@@ -186,7 +188,7 @@ class RealtimeSessionManager {
 
       this.saveAndBroadcast();
     } catch(e) {
-      console.error('Error pulling initial data from Supabase:', e);
+      console.error('Error pulling data from Supabase:', e);
     }
   }
 
@@ -200,7 +202,7 @@ class RealtimeSessionManager {
         .maybeSingle();
 
       if (!existing) {
-        await supabase.from('sessions').insert({
+        const { error } = await supabase.from('sessions').insert({
           id: this.data.session.id,
           join_code: this.data.session.join_code,
           status: this.data.session.status,
@@ -210,6 +212,9 @@ class RealtimeSessionManager {
           study_duration: this.data.session.study_duration,
           presentation_duration: this.data.session.presentation_duration
         });
+        if (error) {
+          console.error('Error inserting session in Supabase:', error);
+        }
       }
     } catch(e) {
       console.error('Error ensuring session in Supabase:', e);
@@ -261,21 +266,85 @@ class RealtimeSessionManager {
 
   // --- ACTIONS ---
 
-  public async createNewSession(joinCode?: string) {
-    const code = joinCode?.toUpperCase() || 'BMC' + Math.floor(100 + Math.random() * 900);
-    this.data = getDefaultStore(code);
+  public async syncSessionByJoinCode(joinCode: string, mode: 'HOST' | 'STUDENT' = 'HOST'): Promise<Session | null> {
+    if (!joinCode) return null;
+    const code = joinCode.toUpperCase().trim();
+    this.data.session.join_code = code;
 
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from('sessions').insert({
+        const { data: existingSession } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('join_code', code)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingSession) {
+          this.data.session = {
+            ...this.data.session,
+            ...existingSession
+          };
+          if (mode === 'HOST') {
+            console.log(`HOST SESSION ID:\n${existingSession.id}`);
+          } else {
+            console.log(`STUDENT SESSION ID:\n${existingSession.id}`);
+          }
+          await this.pullFromSupabase();
+          return existingSession as Session;
+        } else if (mode === 'HOST') {
+          await this.createNewSession(code);
+          return this.data.session;
+        }
+      } catch (e) {
+        console.error('Error syncing session by join code:', e);
+      }
+    }
+    return null;
+  }
+
+  public async createNewSession(joinCode?: string) {
+    const code = joinCode?.toUpperCase().trim() || 'BMC' + Math.floor(100 + Math.random() * 900);
+    const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    this.data = {
+      session: {
+        id: newSessionId,
+        join_code: code,
+        status: 'JOINING',
+        host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
+        created_at: new Date().toISOString(),
+        preparation_duration: 15 * 60,
+        study_duration: 10 * 60,
+        presentation_duration: 3 * 60,
+        scoring_open: false
+      },
+      participants: [],
+      groups: [],
+      peerScores: [],
+      lobbyMessages: []
+    };
+
+    console.log(`HOST SESSION ID:\n${this.data.session.id}`);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { error } = await supabase.from('sessions').insert({
           id: this.data.session.id,
           join_code: this.data.session.join_code,
           status: this.data.session.status,
           host_key: this.data.session.host_key,
-          created_at: this.data.session.created_at
+          created_at: this.data.session.created_at,
+          preparation_duration: this.data.session.preparation_duration,
+          study_duration: this.data.session.study_duration,
+          presentation_duration: this.data.session.presentation_duration
         });
+        if (error) {
+          console.error('Error inserting new session in Supabase:', error);
+        }
       } catch(e) {
-        console.error('Error inserting new session in Supabase:', e);
+        console.error('Exception inserting new session in Supabase:', e);
       }
     }
 
@@ -346,12 +415,34 @@ class RealtimeSessionManager {
       throw new Error('Name is required.');
     }
 
-    // 1. Session Validation
-    if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
-      throw new Error('Session is no longer accepting new participants.');
+    // 1. Resolve and verify exact active session from Supabase by join code
+    if (isSupabaseConfigured && supabase) {
+      const { data: dbSession, error: sessErr } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('join_code', this.data.session.join_code)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (dbSession) {
+        this.data.session = {
+          ...this.data.session,
+          ...dbSession
+        };
+        console.log(`STUDENT SESSION ID:\n${dbSession.id}`);
+      } else {
+        console.error('Session lookup failed in Supabase for code:', this.data.session.join_code, sessErr);
+        throw new Error('Unable to join the session. Session code not found. Please try again.');
+      }
     }
 
-    // 2. Check duplicate participant identity in current session
+    // 2. Session Validation
+    if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
+      throw new Error('Unable to join the session. Session is no longer accepting new participants.');
+    }
+
+    // 3. Check duplicate participant identity in current session
     let existing = this.data.participants.find(
       p => p.name.toLowerCase() === trimmedName.toLowerCase()
     );
@@ -360,6 +451,15 @@ class RealtimeSessionManager {
       existing.department = department;
       existing.status = 'ONLINE';
       existing.last_seen_at = new Date().toISOString();
+      if (isSupabaseConfigured && supabase) {
+        const { error: updateErr } = await supabase
+          .from('participants')
+          .update({ department: existing.department, status: existing.status, last_seen_at: existing.last_seen_at })
+          .eq('id', existing.id);
+        if (updateErr) {
+          console.error('Supabase participant update error:', updateErr);
+        }
+      }
       this.saveAndBroadcast();
       return existing;
     }
@@ -371,14 +471,15 @@ class RealtimeSessionManager {
       department: department,
       status: 'ONLINE',
       joined_at: new Date().toISOString(),
-      last_seen_at: new Date().toISOString()
+      last_seen_at: new Date().toISOString(),
+      is_demo: false
     };
 
-    // 3. Database Insert via Supabase
+    // 4. Database Insert via Supabase (MUST WAIT and check response)
     if (isSupabaseConfigured && supabase) {
       await this.ensureSessionExistsInSupabase();
 
-      const { error } = await supabase.from('participants').insert({
+      const { error: insertErr } = await supabase.from('participants').insert({
         id: participant.id,
         session_id: participant.session_id,
         name: participant.name,
@@ -389,13 +490,13 @@ class RealtimeSessionManager {
         is_demo: false
       });
 
-      if (error) {
-        console.error('Supabase participant insert error:', error);
-        throw new Error(error.message || 'Unable to join session. Please try again.');
+      if (insertErr) {
+        console.error('Supabase participant INSERT error:', insertErr);
+        throw new Error(insertErr.message || 'Unable to join the session. Please try again.');
       }
     }
 
-    // 4. Update local state & broadcast
+    // 5. Update local state & broadcast ONLY after DB insert succeeds
     this.data.participants.push(participant);
     this.saveAndBroadcast();
     return participant;

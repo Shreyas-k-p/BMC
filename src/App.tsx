@@ -78,6 +78,13 @@ export const App: React.FC = () => {
   const activeSessionCode = urlSessionCode || session.join_code;
   const studentJoinUrl = `${origin}/join/${activeSessionCode}`;
 
+  // Automatically sync session ID with Supabase based on join code and mode
+  useEffect(() => {
+    if (activeSessionCode) {
+      actions.syncSessionByJoinCode(activeSessionCode, appMode);
+    }
+  }, [activeSessionCode, appMode]);
+
   // --- HOST ACTIONS ---
   const handleStartSession = (customCode?: string) => {
     actions.createNewSession(customCode);
