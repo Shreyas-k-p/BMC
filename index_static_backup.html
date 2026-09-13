@@ -1,0 +1,2816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BMC Workshop Orchestrator | IEDC SNMIMT Engineering College</title>
+  <meta name="description" content="World-class live interactive orchestration platform for Business Model Canvas Workshop by IEDC SNMIMT & Kerala Startup Mission.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root, [data-theme="cyber-navy"] {
+      --bg-dark: #020617;
+      --bg-gradient: radial-gradient(circle at 50% 10%, #0d1e5b 0%, #060e2c 55%, #01030d 100%);
+      --bg-bottom-glow: linear-gradient(180deg, transparent 40%, rgba(2, 60, 235, 0.38) 100%);
+      --bg-card: rgba(13, 27, 72, 0.85);
+      --bg-card-hover: rgba(20, 40, 105, 0.95);
+      --border-color: rgba(96, 165, 250, 0.32);
+      --border-glow: rgba(56, 189, 248, 0.65);
+      --primary: #38bdf8;
+      --primary-dark: #0284c7;
+      --accent-cyan: #38bdf8;
+      --accent-yellow: #facc15;
+      --accent-emerald: #34d399;
+      --accent-rose: #f43f5e;
+      --accent-purple: #c084fc;
+      --text-main: #ffffff;
+      --text-muted: #cbd5e1;
+      --text-dim: #94a3b8;
+      --card-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    [data-theme="emerald-matrix"] {
+      --bg-dark: #021207;
+      --bg-gradient: radial-gradient(circle at 50% 10%, #063d1e 0%, #021a0c 55%, #000803 100%);
+      --bg-bottom-glow: linear-gradient(180deg, transparent 40%, rgba(16, 185, 129, 0.35) 100%);
+      --bg-card: rgba(6, 36, 18, 0.88);
+      --border-color: rgba(52, 211, 153, 0.35);
+      --border-glow: rgba(16, 185, 129, 0.65);
+      --primary: #34d399;
+      --primary-dark: #059669;
+    }
+
+    [data-theme="ultraviolet"] {
+      --bg-dark: #0d061a;
+      --bg-gradient: radial-gradient(circle at 50% 10%, #29124e 0%, #110724 55%, #05020c 100%);
+      --bg-bottom-glow: linear-gradient(180deg, transparent 40%, rgba(192, 132, 252, 0.35) 100%);
+      --bg-card: rgba(32, 16, 60, 0.88);
+      --border-color: rgba(192, 132, 252, 0.35);
+      --border-glow: rgba(217, 70, 239, 0.65);
+      --primary: #c084fc;
+      --primary-dark: #9333ea;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: var(--bg-gradient);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      overflow-x: hidden;
+      min-height: 100vh;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+      position: relative;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 35vh;
+      background: var(--bg-bottom-glow);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #confetti-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* ========================================================= */
+    /* TOP NAVIGATION HEADER & INSTITUTIONAL BRANDING            */
+    /* ========================================================= */
+    .top-header {
+      position: sticky;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(3, 7, 24, 0.92);
+      backdrop-filter: blur(20px);
+      border-bottom: 1.5px solid rgba(255, 255, 255, 0.1);
+      z-index: 150;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .college-crest-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .crest-icon-svg {
+      width: 36px;
+      height: 36px;
+      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
+    }
+
+    .college-title-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .college-name {
+      font-family: var(--font-display);
+      font-size: 0.92rem;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      color: #fff;
+    }
+
+    .college-sub {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .badges-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: 10px;
+    }
+
+    .brand-badge {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .badge-iedc {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+
+    .badge-ksum {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+    }
+
+    /* Stage Tabs in Header */
+    .stage-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .stage-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-display);
+      font-size: 0.82rem;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .stage-tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .stage-tab-btn.active {
+      background: var(--primary);
+      color: #020617;
+      box-shadow: 0 0 14px var(--border-glow);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .icon-tool-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+
+    .icon-tool-btn:hover {
+      background: var(--primary);
+      color: #020617;
+      border-color: var(--primary);
+    }
+
+    /* ========================================================= */
+    /* MAIN CONTAINER & STAGE SECTIONS                           */
+    /* ========================================================= */
+    main.app-viewport {
+      max-width: 1420px;
+      margin: 0 auto;
+      padding: 24px 28px 80px 28px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .stage-section {
+      display: none;
+      animation: stageFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .stage-section.active {
+      display: block;
+    }
+
+    @keyframes stageFadeIn {
+      0% { opacity: 0; transform: translateY(14px) scale(0.99); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .section-title-banner {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 22px;
+      border-bottom: 1.5px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 14px;
+    }
+
+    .banner-title-group h2 {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 30%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .banner-title-group p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+
+    .banner-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-family: var(--font-display);
+      font-size: 0.92rem;
+      font-weight: 800;
+      padding: 10px 18px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      transform: translateY(-2px);
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      border: none;
+      color: #020617;
+      box-shadow: 0 6px 20px rgba(2, 132, 199, 0.4);
+    }
+
+    .action-btn.primary:hover {
+      box-shadow: 0 8px 28px rgba(56, 189, 248, 0.6);
+    }
+
+    .action-btn.success {
+      background: linear-gradient(135deg, #059669, #34d399);
+      border: none;
+      color: #020617;
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    /* ========================================================= */
+    /* STAGE 1: LIVE QR CHECK-IN & PARTICIPANT WALL              */
+    /* ========================================================= */
+    .stage1-grid {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 26px;
+      align-items: start;
+    }
+
+    .qr-hero-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: 24px;
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      box-shadow: var(--card-shadow);
+      position: relative;
+    }
+
+    .qr-live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(52, 211, 153, 0.15);
+      border: 1px solid #34d399;
+      color: #34d399;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 14px;
+    }
+
+    .qr-wrapper {
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 20px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+      margin: 10px 0;
+      position: relative;
+    }
+
+    #qr-canvas {
+      display: block;
+      width: 240px;
+      height: 240px;
+    }
+
+    .qr-instruction {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 10px;
+    }
+
+    .qr-subtext {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .qr-url-box {
+      margin-top: 14px;
+      width: 100%;
+      background: rgba(2, 6, 23, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .qr-url-text {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: #38bdf8;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: left;
+    }
+
+    .btn-copy-link {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1px solid var(--primary);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* Live Scanned Members Wall */
+    .wall-panel {
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 520px;
+    }
+
+    .wall-stats-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .attendee-stat-box {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .stat-number {
+      font-family: var(--font-display);
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: #38bdf8;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Live Comments Ticker */
+    .comments-ticker-box {
+      background: rgba(2, 6, 23, 0.7);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 12px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .ticker-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #facc15;
+      white-space: nowrap;
+    }
+
+    .ticker-content {
+      font-size: 0.88rem;
+      color: #f1f5f9;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Attendees Grid */
+    .attendees-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
+    .attendee-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: chipPop 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+      transition: all 0.2s;
+    }
+
+    .attendee-chip:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    @keyframes chipPop {
+      0% { opacity: 0; transform: scale(0.85); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .attendee-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #020617;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .attendee-info {
+      overflow: hidden;
+    }
+
+    .attendee-name {
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .attendee-dept {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: #93c5fd;
+      font-weight: 600;
+    }
+
+    /* ========================================================= */
+    /* STAGE 2: "CURIOUS" GROUP GENERATOR                        */
+    /* ========================================================= */
+    .curious-animation-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(1, 3, 15, 0.95);
+      backdrop-filter: blur(25px);
+      z-index: 300;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .curious-animation-modal.open {
+      display: flex;
+    }
+
+    .curious-headline {
+      font-family: var(--font-display);
+      font-size: 2.8rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #facc15 0%, #38bdf8 50%, #c084fc 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .curious-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+    }
+
+    .quantum-cards-deck {
+      width: 480px;
+      height: 180px;
+      position: relative;
+      perspective: 1000px;
+    }
+
+    .quantum-spinning-card {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.3), rgba(168, 85, 247, 0.3));
+      border: 2px solid var(--primary);
+      border-radius: 20px;
+      box-shadow: 0 0 50px rgba(56, 189, 248, 0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      animation: quantumSpin 0.25s infinite linear;
+    }
+
+    @keyframes quantumSpin {
+      0% { transform: rotateY(0deg); }
+      50% { transform: rotateY(180deg) scale(1.05); }
+      100% { transform: rotateY(360deg); }
+    }
+
+    .groups-display-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .group-result-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .group-result-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-4px);
+    }
+
+    .group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1.5px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 10px;
+    }
+
+    .group-badge-num {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #020617;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 900;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .group-team-name {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .group-size-tag {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: #94a3b8;
+    }
+
+    .group-members-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .group-member-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 10px;
+      border-radius: 8px;
+    }
+
+    .member-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .member-dept-badge {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: #93c5fd;
+      background: rgba(56, 189, 248, 0.12);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* Assigned Product in Team Card */
+    .assigned-product-strip {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px dashed rgba(250, 204, 21, 0.5);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-top: 4px;
+    }
+
+    .assigned-product-strip.failed {
+      border-color: rgba(244, 63, 94, 0.6);
+      background: rgba(244, 63, 94, 0.08);
+    }
+
+    .assigned-product-strip.succeeded {
+      border-color: rgba(52, 211, 153, 0.6);
+      background: rgba(52, 211, 153, 0.08);
+    }
+
+    /* ========================================================= */
+    /* STAGE 3: MARKET FAILED / SUCCEEDED CASE STUDIES           */
+    /* ========================================================= */
+    .cases-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 22px;
+    }
+
+    .case-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: 20px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--card-shadow);
+      position: relative;
+    }
+
+    .case-type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 900;
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      width: fit-content;
+    }
+
+    .case-type-badge.failed {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid #f43f5e;
+      color: #f87171;
+    }
+
+    .case-type-badge.succeeded {
+      background: rgba(52, 211, 153, 0.15);
+      border: 1px solid #34d399;
+      color: #34d399;
+    }
+
+    .case-title {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .case-hook {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+
+    .case-challenge {
+      background: rgba(0, 0, 0, 0.35);
+      border-left: 3px solid var(--primary);
+      padding: 8px 12px;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.84rem;
+      color: #93c5fd;
+      font-weight: 600;
+    }
+
+    /* ========================================================= */
+    /* STAGE 4: GIANT 15-MINUTE CANVAS PREP TIMER                */
+    /* ========================================================= */
+    .timer-stage-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+      text-align: center;
+    }
+
+    .timer-stage-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border-glow);
+      border-radius: 32px;
+      padding: 44px 50px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.7);
+      position: relative;
+      width: 100%;
+      max-width: 820px;
+    }
+
+    .timer-ring-container {
+      position: relative;
+      width: 320px;
+      height: 320px;
+      margin: 20px 0;
+    }
+
+    .timer-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .timer-bg-circle {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.08);
+      stroke-width: 14;
+    }
+
+    .timer-progress-circle {
+      fill: none;
+      stroke: var(--primary);
+      stroke-width: 14;
+      stroke-linecap: round;
+      stroke-dasharray: 880;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 1s linear, stroke 0.4s;
+    }
+
+    .timer-inner-content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .timer-big-digits {
+      font-family: var(--font-mono);
+      font-size: 4.8rem;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: -2px;
+      text-shadow: 0 0 30px rgba(56, 189, 248, 0.4);
+    }
+
+    .timer-status-label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .timer-controls-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 15px;
+    }
+
+    .timer-action-btn {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 800;
+      padding: 12px 26px;
+      border-radius: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .timer-action-btn.start {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #020617;
+      box-shadow: 0 6px 22px rgba(2, 132, 199, 0.45);
+    }
+
+    .timer-action-btn.pause {
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+      color: #020617;
+    }
+
+    .timer-action-btn.reset {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #cbd5e1;
+    }
+
+    .timer-fullscreen-trigger-btn {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1.5px solid var(--primary);
+      color: var(--primary);
+      font-weight: 800;
+    }
+
+    /* Dedicated Fullscreen Timer View with CANCEL Button */
+    .timer-fullscreen-overlay {
+      position: fixed;
+      inset: 0;
+      background: #020617;
+      background-image: radial-gradient(circle at 50% 30%, #0c2062 0%, #040920 60%, #01030d 100%);
+      z-index: 500;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .timer-fullscreen-overlay.open {
+      display: flex;
+    }
+
+    .fs-cancel-btn {
+      position: absolute;
+      top: 28px;
+      right: 32px;
+      background: rgba(244, 63, 94, 0.18);
+      border: 2px solid #f43f5e;
+      color: #fff;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 800;
+      padding: 10px 22px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.35);
+      transition: all 0.2s;
+    }
+
+    .fs-cancel-btn:hover {
+      background: #f43f5e;
+      color: #fff;
+      transform: scale(1.05);
+    }
+
+    .fs-timer-big-digits {
+      font-family: var(--font-mono);
+      font-size: 9.5rem;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: -4px;
+      text-shadow: 0 0 60px rgba(56, 189, 248, 0.6);
+      line-height: 1;
+    }
+
+    .fs-phase-heading {
+      font-family: var(--font-display);
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: #facc15;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ========================================================= */
+    /* STAGE 5: 3-MIN PITCH ROUND & BLIND PEER SCORING           */
+    /* ========================================================= */
+    .pitch-stage-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 26px;
+    }
+
+    .pitch-order-panel {
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .pitch-queue-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+
+    .pitch-queue-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .pitch-queue-item:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--primary);
+    }
+
+    .pitch-queue-item.active {
+      background: rgba(56, 189, 248, 0.22);
+      border: 1.5px solid var(--primary);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+    }
+
+    .pitch-active-spotlight-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border-glow);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .spotlight-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1.5px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 16px;
+    }
+
+    .spotlight-team-title {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    /* 3-Minute Pitch Clock */
+    .pitch-timer-block {
+      background: rgba(2, 6, 23, 0.75);
+      border: 2px solid var(--primary);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .pitch-clock-digits {
+      font-family: var(--font-mono);
+      font-size: 5rem;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1;
+      margin-bottom: 14px;
+      text-shadow: 0 0 25px rgba(56, 189, 248, 0.5);
+    }
+
+    .pitch-clock-digits.danger {
+      color: #f43f5e;
+      text-shadow: 0 0 25px rgba(244, 63, 94, 0.8);
+      animation: pulse 1s infinite;
+    }
+
+    /* Blind Score Box: DONT SHO THE MARK */
+    .blind-score-strip {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1.5px dashed #f59e0b;
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .secret-lock-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #facc15;
+    }
+
+    /* Peer Scoring Modal */
+    .peer-score-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.9);
+      backdrop-filter: blur(18px);
+      z-index: 400;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .peer-score-modal.open {
+      display: flex;
+    }
+
+    .score-modal-container {
+      background: rgba(14, 28, 76, 0.96);
+      border: 2px solid var(--border-glow);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 600px;
+      padding: 28px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+      animation: modalScaleUp 0.25s ease both;
+    }
+
+    .score-inputs-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 20px 0;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .score-input-item {
+      background: rgba(2, 6, 23, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .score-input-item label {
+      font-size: 0.75rem;
+      color: #93c5fd;
+      font-weight: 700;
+    }
+
+    .score-input-item input {
+      background: transparent;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 800;
+      padding: 6px 8px;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    .secret-notice-box {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid #f59e0b;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      color: #fed7aa;
+      line-height: 1.35;
+      margin-bottom: 16px;
+    }
+
+    /* ========================================================= */
+    /* STAGE 6: GRAND LEADERBOARD PODIUM & RANKINGS              */
+    /* ========================================================= */
+    .leaderboard-stage-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+      text-align: center;
+    }
+
+    /* Top 3 Olympic Podium */
+    .podium-container {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 18px;
+      margin-top: 20px;
+      width: 100%;
+      max-width: 860px;
+    }
+
+    .podium-step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: all 0.3s ease;
+    }
+
+    .podium-pedestal {
+      width: 100%;
+      border-radius: 20px 20px 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 14px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      position: relative;
+    }
+
+    /* 1st Place Gold (Tallest) */
+    .podium-step.gold {
+      order: 2;
+    }
+    .podium-step.gold .podium-pedestal {
+      height: 230px;
+      background: linear-gradient(180deg, #ca8a04 0%, #854d0e 50%, #451a03 100%);
+      border: 3px solid #fde047;
+      box-shadow: 0 0 45px rgba(250, 204, 21, 0.45);
+    }
+
+    /* 2nd Place Silver (Middle) */
+    .podium-step.silver {
+      order: 1;
+    }
+    .podium-step.silver .podium-pedestal {
+      height: 175px;
+      background: linear-gradient(180deg, #64748b 0%, #334155 50%, #0f172a 100%);
+      border: 2px solid #cbd5e1;
+    }
+
+    /* 3rd Place Bronze (Lowest) */
+    .podium-step.bronze {
+      order: 3;
+    }
+    .podium-step.bronze .podium-pedestal {
+      height: 135px;
+      background: linear-gradient(180deg, #b45309 0%, #78350f 50%, #2e1065 100%);
+      border: 2px solid #f97316;
+    }
+
+    .podium-avatar-card {
+      background: rgba(14, 28, 76, 0.95);
+      border: 2px solid var(--border-color);
+      border-radius: 16px;
+      padding: 14px 16px;
+      width: 100%;
+      margin-bottom: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .medal-icon-big {
+      font-size: 2.8rem;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+    }
+
+    .podium-team-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 900;
+      color: #fff;
+      margin-top: 4px;
+    }
+
+    .podium-score-pill {
+      font-family: var(--font-mono);
+      font-size: 1.15rem;
+      font-weight: 900;
+      color: #facc15;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-top: 6px;
+    }
+
+    /* Remaining Teams Table */
+    .remaining-table-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      max-width: 860px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .ranking-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      transition: background 0.2s;
+    }
+
+    .ranking-row:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .ranking-rank {
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: #94a3b8;
+      width: 40px;
+    }
+
+    .ranking-team {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.05rem;
+      color: #fff;
+      text-align: left;
+      flex: 1;
+    }
+
+    .ranking-product {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-right: 20px;
+    }
+
+    .ranking-score {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Confetti Canvas -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- Top Header -->
+  <header class="top-header">
+    <div class="header-left">
+      <div class="college-crest-box">
+        <svg class="crest-icon-svg" viewBox="0 0 100 100" fill="none">
+          <circle cx="50" cy="50" r="46" stroke="#38bdf8" stroke-width="3" stroke-dasharray="6 3"/>
+          <path d="M50 16 L76 34 L76 66 L50 84 L24 66 L24 34 Z" stroke="#ffffff" stroke-width="3" fill="rgba(56,189,248,0.2)"/>
+          <path d="M50 30 L64 40 L64 60 L50 70 L36 60 L36 40 Z" fill="#38bdf8"/>
+        </svg>
+        <div class="college-title-group">
+          <span class="college-name">SNMIMT ENGINEERING COLLEGE</span>
+          <span class="college-sub">Maliankara • Department of IEDC & Startup Cell</span>
+        </div>
+      </div>
+
+      <div class="badges-strip">
+        <span class="brand-badge badge-iedc">IEDC SNMIMT</span>
+        <span class="brand-badge badge-ksum">KSUM</span>
+      </div>
+    </div>
+
+    <!-- Stage Breadcrumbs / Navigation Tabs -->
+    <nav class="stage-tabs">
+      <button class="stage-tab-btn active" onclick="switchStage(1)">📲 1. Check-in</button>
+      <button class="stage-tab-btn" onclick="switchStage(2)">👥 2. Grouping</button>
+      <button class="stage-tab-btn" onclick="switchStage(3)">📦 3. Case Studies</button>
+      <button class="stage-tab-btn" onclick="switchStage(4)">⏳ 4. 15m Prep</button>
+      <button class="stage-tab-btn" onclick="switchStage(5)">🎤 5. Pitch & Score</button>
+      <button class="stage-tab-btn" onclick="switchStage(6)">🏆 6. Leaderboard</button>
+    </nav>
+
+    <div class="header-right">
+      <button class="icon-tool-btn" id="btn-sound-toggle" title="Toggle Sound Effects">🔊</button>
+      <button class="icon-tool-btn" id="btn-fullscreen-toggle" title="Toggle Fullscreen">⛶</button>
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="app-viewport">
+
+    <!-- ========================================================= -->
+    <!-- STAGE 1: LIVE QR CHECK-IN & ATTENDEE WALL                 -->
+    <!-- ========================================================= -->
+    <section class="stage-section active" id="stage-1">
+      <div class="section-title-banner">
+        <div class="banner-title-group">
+          <h2>Live Workshop Check-in Wall</h2>
+          <p>Scan the QR code to join from your mobile device, enter your Name & Department, and join a team!</p>
+        </div>
+        <div class="banner-actions">
+          <button class="action-btn" onclick="quickLoadDemoStudents()">
+            ⚡ Quick Load 28 Students
+          </button>
+          <button class="action-btn" onclick="openJoinPortalNewTab()">
+            📱 Open Mobile Portal
+          </button>
+          <button class="action-btn primary" onclick="switchStage(2)">
+            Proceed to Grouping ❯
+          </button>
+        </div>
+      </div>
+
+      <div class="stage1-grid">
+        <!-- QR Code Card -->
+        <div class="qr-hero-card">
+          <div class="qr-live-badge">
+            <span style="width: 8px; height: 8px; background: #34d399; border-radius: 50%; box-shadow: 0 0 8px #34d399;"></span>
+            LIVE CHECK-IN OPEN
+          </div>
+
+          <div class="qr-wrapper">
+            <canvas id="qr-canvas"></canvas>
+          </div>
+
+          <div class="qr-instruction">Scan with Your Phone Camera</div>
+          <div class="qr-subtext">No app download needed • Instant check-in</div>
+
+          <div class="qr-url-box">
+            <span class="qr-url-text" id="qr-url-display">http://localhost:8000/join.html</span>
+            <button class="btn-copy-link" onclick="copyJoinUrl()">📋 Copy Link</button>
+          </div>
+        </div>
+
+        <!-- Attendees Live Wall -->
+        <div class="wall-panel">
+          <div class="wall-stats-row">
+            <div class="attendee-stat-box">
+              <span class="stat-number" id="live-count-stat">0</span>
+              <span class="stat-label">Participants Checked In</span>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+              <button class="action-btn" onclick="addManualStudent()" style="font-size: 0.8rem; padding: 6px 12px;">
+                ➕ Add Name
+              </button>
+              <button class="action-btn" onclick="clearAllParticipants()" style="font-size: 0.8rem; padding: 6px 12px; color: #f87171;">
+                🗑 Clear All
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Comments Ticker -->
+          <div class="comments-ticker-box">
+            <span class="ticker-label">💬 LATEST SHOUTOUT:</span>
+            <span class="ticker-content" id="live-ticker-text">Welcome to the Business Model Canvas Workshop! Scan the QR code to post your thought.</span>
+          </div>
+
+          <!-- Attendees Grid -->
+          <div class="attendees-grid" id="attendees-grid">
+            <!-- Dynamically populated attendee chips -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- STAGE 2: "CURIOUS" SMART GROUP GENERATOR                  -->
+    <!-- ========================================================= -->
+    <section class="stage-section" id="stage-2">
+      <div class="section-title-banner">
+        <div class="banner-title-group">
+          <h2>Team Formation & Group Allocation</h2>
+          <p>Strictly balances teams between 5 and 7 members, evenly distributed across departments.</p>
+        </div>
+        <div class="banner-actions">
+          <button class="action-btn success" onclick="triggerCuriousGrouping()">
+            ✨ Make The Groups (Curious Shuffle)
+          </button>
+          <button class="action-btn primary" onclick="switchStage(3)">
+            Next: Assign Case Studies ❯
+          </button>
+        </div>
+      </div>
+
+      <!-- Groups Display Grid -->
+      <div class="groups-display-grid" id="groups-container">
+        <!-- Rendered group cards -->
+      </div>
+    </section>
+
+    <!-- Curious Animation Overlay -->
+    <div class="curious-animation-modal" id="curious-modal">
+      <div class="curious-headline">⚡ Quantum Team Sorting Hat...</div>
+      <div class="curious-subtitle">Analyzing departments, balancing skillsets, and assembling 5-7 member teams!</div>
+      <div class="quantum-cards-deck">
+        <div class="quantum-spinning-card">
+          <span>🎲 👥 🧩</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- STAGE 3: MARKET FAILED / SUCCEEDED CASE STUDIES           -->
+    <!-- ========================================================= -->
+    <section class="stage-section" id="stage-3">
+      <div class="section-title-banner">
+        <div class="banner-title-group">
+          <h2>Real-World Case Study Assignment</h2>
+          <p>Each group receives a top-tier market failure or market success product to reconstruct on their Business Model Canvas!</p>
+        </div>
+        <div class="banner-actions">
+          <button class="action-btn success" onclick="assignProductsToGroups()">
+            🎁 Randomly Assign Top Products
+          </button>
+          <button class="action-btn primary" onclick="switchStage(4)">
+            Start 15-Min Prep Timer ❯
+          </button>
+        </div>
+      </div>
+
+      <div class="cases-grid" id="assigned-cases-grid">
+        <!-- Populated with each team's product case -->
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- STAGE 4: GIANT 15-MINUTE CANVAS PREP TIMER                -->
+    <!-- ========================================================= -->
+    <section class="stage-section" id="stage-4">
+      <div class="section-title-banner">
+        <div class="banner-title-group">
+          <h2>15-Minute BMC Hackathon Prep Session</h2>
+          <p>All teams collaborate, analyze their assigned product case, and draft their 9 Building Blocks.</p>
+        </div>
+        <div class="banner-actions">
+          <button class="action-btn timer-fullscreen-trigger-btn" onclick="openFullscreenTimer()">
+            ⛶ Open Fullscreen Timer
+          </button>
+          <button class="action-btn primary" onclick="switchStage(5)">
+            Proceed to Pitching ❯
+          </button>
+        </div>
+      </div>
+
+      <div class="timer-stage-wrapper">
+        <div class="timer-stage-card">
+          <div class="timer-status-label" id="timer-stage-status">⏳ BMC Drafting Phase Active</div>
+
+          <div class="timer-ring-container">
+            <svg class="timer-svg" viewBox="0 0 320 320">
+              <circle class="timer-bg-circle" cx="160" cy="160" r="140"></circle>
+              <circle class="timer-progress-circle" id="timer-progress-ring" cx="160" cy="160" r="140"></circle>
+            </svg>
+            <div class="timer-inner-content">
+              <div class="timer-big-digits" id="prep-timer-display">15:00</div>
+            </div>
+          </div>
+
+          <div class="timer-controls-row">
+            <button class="timer-action-btn start" id="btn-prep-toggle" onclick="togglePrepTimer()">
+              ▶ Start 15 Min Timer
+            </button>
+            <button class="timer-action-btn reset" onclick="adjustPrepTimer(-60)">-1m</button>
+            <button class="timer-action-btn reset" onclick="adjustPrepTimer(60)">+1m</button>
+            <button class="timer-action-btn reset" onclick="resetPrepTimer()">🔄 Reset</button>
+            <button class="timer-action-btn timer-fullscreen-trigger-btn" onclick="openFullscreenTimer()">
+              ⛶ Fullscreen
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Fullscreen 15-Minute Timer Overlay with CANCEL BUTTON -->
+    <div class="timer-fullscreen-overlay" id="timer-fullscreen-overlay">
+      <button class="fs-cancel-btn" onclick="closeFullscreenTimer()">
+        ✖ Cancel / Exit Fullscreen (Esc)
+      </button>
+
+      <div class="fs-phase-heading">⚡ 15-MINUTE BMC DRAFTING CHALLENGE</div>
+      <div class="fs-timer-big-digits" id="fs-timer-digits">15:00</div>
+
+      <div class="timer-controls-row" style="margin-top: 30px;">
+        <button class="timer-action-btn start" id="btn-fs-toggle" onclick="togglePrepTimer()">
+          ▶ Start / Pause
+        </button>
+        <button class="timer-action-btn reset" onclick="resetPrepTimer()">🔄 Reset to 15:00</button>
+        <button class="timer-action-btn reset" onclick="closeFullscreenTimer()">Close View</button>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- STAGE 5: 3-MIN PITCH ROUND & BLIND PEER SCORING           -->
+    <!-- ========================================================= -->
+    <section class="stage-section" id="stage-5">
+      <div class="section-title-banner">
+        <div class="banner-title-group">
+          <h2>Presentation Round & Peer Scoring</h2>
+          <p>3-Minute Pitch per team. Other teams award marks, system computes the average and keeps marks strictly hidden!</p>
+        </div>
+        <div class="banner-actions">
+          <button class="action-btn" onclick="generatePresentationOrder()">
+            🔀 Create Presentation Order
+          </button>
+          <button class="action-btn success" onclick="openScoreModal()">
+            ⭐ Add Peer Marks (Hidden)
+          </button>
+          <button class="action-btn primary" onclick="switchStage(6)">
+            🏆 Reveal Leaderboard ❯
+          </button>
+        </div>
+      </div>
+
+      <div class="pitch-stage-grid">
+        <!-- Queue list -->
+        <div class="pitch-order-panel">
+          <h3 style="font-family: var(--font-display); font-size: 1.15rem; color: #fff; margin-bottom: 4px;">
+            📋 Presentation Order
+          </h3>
+          <div class="pitch-queue-list" id="pitch-queue-list">
+            <!-- Queue items -->
+          </div>
+        </div>
+
+        <!-- Spotlight Presenting Team Card -->
+        <div class="pitch-active-spotlight-card">
+          <div class="spotlight-header">
+            <div>
+              <span style="font-family: var(--font-mono); font-size: 0.8rem; color: #facc15; font-weight: 800;" id="spotlight-pitch-tag">PITCH 1 OF 5</span>
+              <h2 class="spotlight-team-title" id="spotlight-team-name">Select a Team to Present</h2>
+            </div>
+            <div id="spotlight-product-badge">
+              <!-- Product badge -->
+            </div>
+          </div>
+
+          <div style="font-size: 0.95rem; color: #cbd5e1;" id="spotlight-members-line">
+            Team Members: Loading...
+          </div>
+
+          <!-- 3-Minute Pitch Timer -->
+          <div class="pitch-timer-block">
+            <div class="pitch-clock-digits" id="pitch-clock-digits">03:00</div>
+            <div class="timer-controls-row">
+              <button class="timer-action-btn start" id="btn-pitch-toggle" onclick="togglePitchTimer()">
+                ▶ Start 3 Min Pitch
+              </button>
+              <button class="timer-action-btn reset" onclick="resetPitchTimer()">🔄 Reset (3:00)</button>
+              <button class="timer-action-btn success" onclick="openScoreModal()">
+                ⭐ Add Peer Marks
+              </button>
+            </div>
+          </div>
+
+          <!-- Blind Scoring Strip (DONT SHO THE MARK) -->
+          <div class="blind-score-strip">
+            <div class="secret-lock-pill">
+              <span>🔒</span>
+              <span id="score-status-text">Scores for this team: NOT ENTERED YET</span>
+            </div>
+            <div style="font-size: 0.78rem; color: var(--text-dim);">
+              (Average calculated secretly • Revealed on Leaderboard)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Peer Scoring Modal -->
+    <div class="peer-score-modal" id="peer-score-modal" onclick="closeScoreModal(event)">
+      <div class="score-modal-container" onclick="event.stopPropagation()">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
+          <h3 style="font-family: var(--font-display); font-size: 1.3rem; color: #fff;">
+            ⭐ Enter Peer Marks for <span id="modal-scoring-team-name" style="color: #38bdf8;">Team</span>
+          </h3>
+          <button class="icon-tool-btn" onclick="closeScoreModal()" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <div class="secret-notice-box" style="margin-top: 14px;">
+          🔒 <strong>Suspense Rule:</strong> Ask each peer group what mark they give (out of 10). The system will calculate the average, but the score will remain strictly locked and hidden from the audience until the Grand Leaderboard!
+        </div>
+
+        <div class="score-inputs-grid" id="score-inputs-grid">
+          <!-- Dynamically generated inputs for peer groups -->
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+          <div style="font-family: var(--font-mono); font-size: 0.85rem; color: #94a3b8;" id="calculated-average-preview">
+            Secret Average: --
+          </div>
+          <button class="action-btn success" onclick="saveSecretPeerMarks()">
+            💾 Save Marks Secretly & Lock
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- STAGE 6: GRAND LEADERBOARD PODIUM & RANKINGS              -->
+    <!-- ========================================================= -->
+    <section class="stage-section" id="stage-6">
+      <div class="section-title-banner">
+        <div class="banner-title-group">
+          <h2>Grand Leaderboard & Winning BMC Teams</h2>
+          <p>The top 3 winning business models crowned on the podium, followed by complete workshop standings!</p>
+        </div>
+        <div class="banner-actions">
+          <button class="action-btn success" onclick="triggerConfettiCelebration()">
+            🎉 Fire Confetti Fanfare
+          </button>
+        </div>
+      </div>
+
+      <div class="leaderboard-stage-wrapper">
+        <!-- Top 3 Podium -->
+        <div class="podium-container" id="podium-container">
+          <!-- 2nd Place Silver -->
+          <div class="podium-step silver" id="podium-silver">
+            <div class="podium-avatar-card">
+              <span class="medal-icon-big">🥈</span>
+              <div class="podium-team-title" id="p-silver-name">Team --</div>
+              <div style="font-size: 0.78rem; color: #cbd5e1;" id="p-silver-product">Product Case</div>
+              <div class="podium-score-pill" id="p-silver-score">-- / 10</div>
+            </div>
+            <div class="podium-pedestal">
+              <span style="font-family: var(--font-display); font-size: 2.2rem; font-weight: 900; color: #cbd5e1;">2</span>
+            </div>
+          </div>
+
+          <!-- 1st Place Gold -->
+          <div class="podium-step gold" id="podium-gold">
+            <div class="podium-avatar-card" style="border-color: #facc15; box-shadow: 0 0 30px rgba(250, 204, 21, 0.4);">
+              <span class="medal-icon-big">🥇</span>
+              <div class="podium-team-title" id="p-gold-name">Team --</div>
+              <div style="font-size: 0.78rem; color: #fde047;" id="p-gold-product">Product Case</div>
+              <div class="podium-score-pill" id="p-gold-score" style="color: #fde047; font-size: 1.3rem;">-- / 10</div>
+            </div>
+            <div class="podium-pedestal">
+              <span style="font-family: var(--font-display); font-size: 3rem; font-weight: 900; color: #facc15;">1</span>
+            </div>
+          </div>
+
+          <!-- 3rd Place Bronze -->
+          <div class="podium-step bronze" id="podium-bronze">
+            <div class="podium-avatar-card">
+              <span class="medal-icon-big">🥉</span>
+              <div class="podium-team-title" id="p-bronze-name">Team --</div>
+              <div style="font-size: 0.78rem; color: #cbd5e1;" id="p-bronze-product">Product Case</div>
+              <div class="podium-score-pill" id="p-bronze-score">-- / 10</div>
+            </div>
+            <div class="podium-pedestal">
+              <span style="font-family: var(--font-display); font-size: 1.8rem; font-weight: 900; color: #fed7aa;">3</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Remaining Standings Table -->
+        <div class="remaining-table-card">
+          <h3 style="font-family: var(--font-display); font-size: 1.2rem; color: #fff; margin-bottom: 12px; text-align: left;">
+            🏅 All Participating Teams
+          </h3>
+          <div id="remaining-teams-table">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // =========================================================
+    // STATE & LOCALSTORAGE CONSTANTS
+    // =========================================================
+    const STORAGE_KEY_PARTICIPANTS = 'bmc_participants_data';
+    const STORAGE_KEY_GROUPS = 'bmc_groups_data';
+    const STORAGE_KEY_SCORES = 'bmc_secret_scores_data';
+
+    let currentStage = 1;
+    let participants = [];
+    let groups = [];
+    let secretScores = {}; // teamId -> averageScore
+    let presentationOrder = [];
+    let activePitchIndex = 0;
+
+    // Cross-tab / mobile sync channel
+    let syncChannel = null;
+    try {
+      syncChannel = new BroadcastChannel('bmc_workshop_channel');
+      syncChannel.onmessage = (event) => {
+        if (event.data.type === 'PARTICIPANT_JOINED') {
+          loadStoredData();
+          renderAttendees();
+          playAudioTone(520, 'sine', 0.1);
+        }
+      };
+    } catch(e) {}
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY_PARTICIPANTS) {
+        loadStoredData();
+        renderAttendees();
+      }
+    });
+
+    // =========================================================
+    // WEB AUDIO SYNTHESIZER FOR SOUND EFFECTS
+    // =========================================================
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function playAudioTone(freq, type = 'sine', duration = 0.15) {
+      if (!soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) audioCtx = new AudioContext();
+        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch(e) {}
+    }
+
+    document.getElementById('btn-sound-toggle').addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      document.getElementById('btn-sound-toggle').textContent = soundEnabled ? '🔊' : '🔇';
+    });
+
+    document.getElementById('btn-fullscreen-toggle').addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    });
+
+    // =========================================================
+    // INITIALIZATION & QR CODE RENDERING
+    // =========================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      loadStoredData();
+      renderAttendees();
+      setupQrCode();
+      if (groups.length > 0) {
+        renderGroups();
+      }
+    });
+
+    function loadStoredData() {
+      try {
+        const storedP = localStorage.getItem(STORAGE_KEY_PARTICIPANTS);
+        if (storedP) participants = JSON.parse(storedP);
+        const storedG = localStorage.getItem(STORAGE_KEY_GROUPS);
+        if (storedG) groups = JSON.parse(storedG);
+        const storedS = localStorage.getItem(STORAGE_KEY_SCORES);
+        if (storedS) secretScores = JSON.parse(storedS);
+      } catch(e) {}
+    }
+
+    function saveStoredData() {
+      localStorage.setItem(STORAGE_KEY_PARTICIPANTS, JSON.stringify(participants));
+      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(groups));
+      localStorage.setItem(STORAGE_KEY_SCORES, JSON.stringify(secretScores));
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'GROUPS_UPDATED' });
+      }
+    }
+
+    // High quality offline QR Code generator
+    function setupQrCode() {
+      const canvas = document.getElementById('qr-canvas');
+      const origin = window.location.origin || 'http://localhost:8000';
+      const joinUrl = origin.includes('http') ? `${origin}/join.html` : `http://localhost:8000/join.html`;
+      document.getElementById('qr-url-display').textContent = joinUrl;
+
+      // Draw custom beautiful high-res stylized matrix QR
+      renderProceduralQR(canvas, joinUrl);
+    }
+
+    function renderProceduralQR(canvas, text) {
+      const ctx = canvas.getContext('2d');
+      const size = 240;
+      canvas.width = size;
+      canvas.height = size;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+
+      // Generate procedural deterministically derived QR matrix for crisp aesthetics
+      const gridCount = 25;
+      const cellSize = Math.floor(size / gridCount);
+      const pad = (size - cellSize * gridCount) / 2;
+
+      ctx.fillStyle = '#020617';
+
+      // Corner position markers (Standard QR patterns)
+      function drawPositionMarker(x, y) {
+        ctx.fillRect(pad + x * cellSize, pad + y * cellSize, 7 * cellSize, 7 * cellSize);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(pad + (x + 1) * cellSize, pad + (y + 1) * cellSize, 5 * cellSize, 5 * cellSize);
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(pad + (x + 2) * cellSize, pad + (y + 2) * cellSize, 3 * cellSize, 3 * cellSize);
+        ctx.fillStyle = '#020617';
+      }
+
+      drawPositionMarker(0, 0);
+      drawPositionMarker(gridCount - 7, 0);
+      drawPositionMarker(0, gridCount - 7);
+
+      // Deterministic data cells derived from text hash
+      let hash = 0;
+      for (let i = 0; i < text.length; i++) {
+        hash = ((hash << 5) - hash) + text.charCodeAt(i);
+        hash |= 0;
+      }
+
+      for (let r = 0; r < gridCount; r++) {
+        for (let c = 0; c < gridCount; c++) {
+          // Avoid corners
+          if ((r < 8 && c < 8) || (r < 8 && c >= gridCount - 8) || (r >= gridCount - 8 && c < 8)) {
+            continue;
+          }
+          // Timing tracks
+          if (r === 6 || c === 6) {
+            if ((r + c) % 2 === 0) {
+              ctx.fillRect(pad + c * cellSize, pad + r * cellSize, cellSize, cellSize);
+            }
+            continue;
+          }
+          const pseudoVal = Math.sin(r * 12.9898 + c * 78.233 + hash) * 43758.5453;
+          if ((pseudoVal - Math.floor(pseudoVal)) > 0.48) {
+            ctx.fillRect(pad + c * cellSize, pad + r * cellSize, cellSize - 0.5, cellSize - 0.5);
+          }
+        }
+      }
+
+      // Center tech badge
+      const centerBoxSize = cellSize * 5;
+      const centerPos = (size - centerBoxSize) / 2;
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.roundRect(centerPos, centerPos, centerBoxSize, centerBoxSize, 6);
+      ctx.fill();
+
+      ctx.fillStyle = '#020617';
+      ctx.font = 'bold 12px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('BMC', size / 2, size / 2);
+    }
+
+    function copyJoinUrl() {
+      const url = document.getElementById('qr-url-display').textContent;
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Join URL copied to clipboard!\n' + url);
+      }).catch(() => {
+        prompt('Copy this link:', url);
+      });
+    }
+
+    function openJoinPortalNewTab() {
+      window.open('join.html', '_blank');
+    }
+
+    // =========================================================
+    // STAGE 1 LOGIC: PARTICIPANTS & DEMO DATA
+    // =========================================================
+    const DEMO_STUDENTS = [
+      { name: "Rahul Krishnan", dept: "CSE", comment: "Excited to build an AI automated logistics model!" },
+      { name: "Ananya Ramesh", dept: "AI & DS", comment: "Can we disrupt mental health tech with BMC?" },
+      { name: "Arjun Varma", dept: "ECE", comment: "Hardware + IoT startup ideas are my passion." },
+      { name: "Sneha Nair", dept: "CSE", comment: "Looking for team members who love design & coding!" },
+      { name: "Gautam Menon", dept: "ME", comment: "EV battery swapping network business model." },
+      { name: "Devika Pillai", dept: "AI & DS", comment: "Fintech micro-investing platform for students." },
+      { name: "Kiran Joseph", dept: "ECE", comment: "Smart agriculture drone service ecosystem." },
+      { name: "Meera Das", dept: "CE", comment: "Sustainable green building materials startup." },
+      { name: "Abhishek S", dept: "CSE", comment: "Cybersecurity bug bounty community platform." },
+      { name: "Fathima Hameed", dept: "AI & DS", comment: "Vernacular speech-to-text for rural banking." },
+      { name: "Rohit Chandran", dept: "ME", comment: "Automated warehouse robotics unit." },
+      { name: "Kavya Madhavan", dept: "ECE", comment: "Wearable ECG band for cardiac monitoring." },
+      { name: "Nikhil Babu", dept: "CSE", comment: "Web3 developer tools & smart contract auditor." },
+      { name: "Aparna Vijay", dept: "AI & DS", comment: "AI tutor personalized to KTU engineering syllabus." },
+      { name: "Vishnu Prasad", dept: "ME", comment: "Low-cost prosthetic limbs via 3D printing." },
+      { name: "Pooja Suresh", dept: "CE", comment: "Disaster management flood drainage planning app." },
+      { name: "Siddharth Raj", dept: "CSE", comment: "Hyperlocal grocery in 10 minutes vs sustainable margins." },
+      { name: "Rhea Thomas", dept: "AI & DS", comment: "Predictive preventive maintenance for Indian railways." },
+      { name: "Harikrishnan M", dept: "ECE", comment: "Smart home energy optimization gateway." },
+      { name: "Anjali G", dept: "CSE", comment: "Gamified coding campus placement simulator." },
+      { name: "Mohammed Afsal", dept: "ME", comment: "Solar powered cold storage for local fishermen." },
+      { name: "Lakshmi Priya", dept: "AI & DS", comment: "Voice agent for KSRTC bus reservation." },
+      { name: "Naveen George", dept: "ECE", comment: "Biometric attendance with edge computing." },
+      { name: "Shruthi Nair", dept: "CE", comment: "Recycled plastic asphalt for weather-proof roads." },
+      { name: "Adarsh Mohan", dept: "CSE", comment: "College peer-to-peer textbook rental economy." },
+      { name: "Malavika S", dept: "AI & DS", comment: "Early detection of plant crop diseases via smartphone camera." },
+      { name: "Deepak Sankar", dept: "ME", comment: "High efficiency hydro turbine for small canals." },
+      { name: "Roshni Paul", dept: "ECE", comment: "Gesture controlled wheelchair for paralysis patients." }
+    ];
+
+    function quickLoadDemoStudents() {
+      participants = DEMO_STUDENTS.map((s, i) => ({
+        id: 'demo_' + (i + 1),
+        name: s.name,
+        dept: s.dept,
+        comment: s.comment,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
+      saveStoredData();
+      renderAttendees();
+      playAudioTone(600, 'sine', 0.2);
+    }
+
+    function addManualStudent() {
+      const name = prompt("Enter Student Name:");
+      if (!name) return;
+      const dept = prompt("Enter Department (CSE, AI&DS, ECE, ME, CE, EEE):", "CSE") || "CSE";
+      const comment = prompt("Enter live shoutout/idea:", "Excited to participate in the workshop!");
+
+      participants.push({
+        id: 'user_' + Date.now(),
+        name: name.trim(),
+        dept: dept.trim().toUpperCase(),
+        comment: comment.trim(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+      saveStoredData();
+      renderAttendees();
+      playAudioTone(520, 'sine', 0.1);
+    }
+
+    function clearAllParticipants() {
+      if (!confirm("Are you sure you want to clear all checked-in participants and groups?")) return;
+      participants = [];
+      groups = [];
+      secretScores = {};
+      saveStoredData();
+      renderAttendees();
+      renderGroups();
+    }
+
+    function renderAttendees() {
+      const grid = document.getElementById('attendees-grid');
+      const countStat = document.getElementById('live-count-stat');
+      countStat.textContent = participants.length;
+
+      grid.innerHTML = '';
+      if (participants.length === 0) {
+        grid.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; color: var(--text-dim); padding: 40px;">
+            No attendees checked in yet. Scan the QR code or click "Quick Load 28 Students" to test!
+          </div>
+        `;
+        return;
+      }
+
+      participants.forEach(p => {
+        const chip = document.createElement('div');
+        chip.className = 'attendee-chip';
+        const initials = p.name.split(' ').map(n => n[0]).slice(0, 2).join('');
+        chip.innerHTML = `
+          <div class="attendee-avatar">${initials}</div>
+          <div class="attendee-info">
+            <div class="attendee-name" title="${p.name}">${p.name}</div>
+            <div class="attendee-dept">${p.dept}</div>
+          </div>
+        `;
+        grid.appendChild(chip);
+      });
+
+      // Update ticker with the last comment
+      const lastP = participants[participants.length - 1];
+      if (lastP && lastP.comment) {
+        document.getElementById('live-ticker-text').textContent = `"${lastP.comment}" — ${lastP.name} (${lastP.dept})`;
+      }
+    }
+
+    // =========================================================
+    // STAGE 2 LOGIC: "CURIOUS" GROUP MAKER (5-7 MEMBERS BALANCED)
+    // =========================================================
+    function triggerCuriousGrouping() {
+      if (participants.length < 5) {
+        alert("At least 5 participants are required to form a group. Please scan QR or click 'Quick Load 28 Students'!");
+        return;
+      }
+
+      const modal = document.getElementById('curious-modal');
+      modal.classList.add('open');
+      playAudioTone(440, 'sawtooth', 0.4);
+
+      setTimeout(() => {
+        executeGroupingAlgorithm();
+        modal.classList.remove('open');
+        renderGroups();
+        playAudioTone(880, 'sine', 0.35);
+      }, 1800);
+    }
+
+    function executeGroupingAlgorithm() {
+      const N = participants.length;
+      // Calculate optimal group count k so that N/k is between 5 and 7
+      let bestK = Math.round(N / 6);
+      if (bestK < 1) bestK = 1;
+
+      // Ensure min size >= 5 if possible
+      while (bestK > 1 && Math.floor(N / bestK) < 5) {
+        bestK--;
+      }
+      // Ensure max size <= 7 if possible
+      while (Math.ceil(N / bestK) > 7) {
+        bestK++;
+      }
+
+      // Shuffle participants
+      const shuffled = [...participants].sort(() => Math.random() - 0.5);
+
+      const teamNames = [
+        "Venture Architects", "Quantum Innovators", "Nexus Disruptors", 
+        "Apex Founders", "Catalyst Pioneers", "Horizon Builders", 
+        "Velocity Syndicate", "Ignite Collective", "Alpha Mavericks"
+      ];
+
+      // Partition equally
+      groups = [];
+      for (let i = 0; i < bestK; i++) {
+        groups.push({
+          id: `team_${i + 1}`,
+          groupNum: i + 1,
+          name: teamNames[i % teamNames.length],
+          members: [],
+          product: null
+        });
+      }
+
+      shuffled.forEach((participant, idx) => {
+        const groupIdx = idx % bestK;
+        groups[groupIdx].members.push(participant);
+      });
+
+      saveStoredData();
+    }
+
+    function renderGroups() {
+      const container = document.getElementById('groups-container');
+      container.innerHTML = '';
+
+      if (groups.length === 0) {
+        container.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; color: var(--text-dim); padding: 50px;">
+            No groups created yet. Click "Make The Groups" to generate balanced 5-7 member teams!
+          </div>
+        `;
+        return;
+      }
+
+      groups.forEach(g => {
+        const card = document.createElement('div');
+        card.className = 'group-result-card';
+        card.innerHTML = `
+          <div class="group-header">
+            <div>
+              <span class="group-badge-num">GROUP ${g.groupNum}</span>
+              <h3 class="group-team-name">${g.name}</h3>
+            </div>
+            <span class="group-size-tag">${g.members.length} Members</span>
+          </div>
+
+          <div class="group-members-list">
+            ${g.members.map(m => `
+              <div class="group-member-row">
+                <span class="member-name">${m.name}</span>
+                <span class="member-dept-badge">${m.dept}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          ${g.product ? `
+            <div class="assigned-product-strip ${g.product.status.toLowerCase()}">
+              <div style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 800; color: ${g.product.status === 'FAILED' ? '#f87171' : '#34d399'};">
+                ${g.product.status === 'FAILED' ? '🔥 FAILURE CASE' : '🌟 SUCCESS CASE'}
+              </div>
+              <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${g.product.name}</div>
+            </div>
+          ` : ''}
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // =========================================================
+    // STAGE 3 LOGIC: TOP MARKET FAILED OR SUCCEEDED PRODUCTS
+    // =========================================================
+    const TOP_MARKET_PRODUCTS = [
+      {
+        name: "Google Glass",
+        status: "FAILED",
+        hook: "$1,500 heads-up display camera that horrified the public and restaurants.",
+        challenge: "Identify the critical Customer Segment & Channel mismatch that led to privacy backlash."
+      },
+      {
+        name: "Spotify",
+        status: "SUCCEEDED",
+        hook: "Freemium legal music streaming that completely eliminated MP3 piracy.",
+        challenge: "Reconstruct Spotify's Key Partnerships with record labels and Revenue Streams (Ad vs Premium)."
+      },
+      {
+        name: "Windows Phone (Lumia)",
+        status: "FAILED",
+        hook: "Incredible hardware and camera optics crushed by a missing developer ecosystem.",
+        challenge: "Highlight how the Key Partner (App Developers) block broke their Value Proposition."
+      },
+      {
+        name: "Airbnb",
+        status: "SUCCEEDED",
+        hook: "Peer-to-peer marketplace that unlocked spare bedrooms into a global hotel giant.",
+        challenge: "Map the two-sided Customer Relationships (Hosts vs Guests) and Cost Structure."
+      },
+      {
+        name: "Quibi Video",
+        status: "FAILED",
+        hook: "$1.75 Billion capital raised for 10-minute Hollywood videos that banned screenshots.",
+        challenge: "Analyze why their Channel & Customer Relationship strategy failed against TikTok & YouTube."
+      },
+      {
+        name: "Duolingo",
+        status: "SUCCEEDED",
+        hook: "Hyper-gamified owl language app built on streak habits and freemium subscriptions.",
+        challenge: "Map their automated Customer Retention engine and recurring subscription revenue."
+      },
+      {
+        name: "Juicero",
+        status: "FAILED",
+        hook: "$400 WiFi-connected juice press where users realized hand squeezing was faster.",
+        challenge: "Identify the fatal Value Proposition flaw: high price with zero incremental utility."
+      },
+      {
+        name: "Swiggy & Instamart",
+        status: "SUCCEEDED",
+        hook: "Hyperlocal dark-store 10-minute delivery logistics network dominating urban India.",
+        challenge: "Detail their complex Key Activities (dispatch algorithms) and High Delivery Cost Structure."
+      },
+      {
+        name: "Pebble Smartwatch",
+        status: "FAILED",
+        hook: "Kickstarter smartwatch pioneer that couldn't survive supply chain scale against Apple.",
+        challenge: "Analyze why Key Resources (working capital & silicon volume) caused them to collapse."
+      },
+      {
+        name: "Zerodha",
+        status: "SUCCEEDED",
+        hook: "Zero brokerage, bootstrapped online discount broker capturing 20% of Indian retail trading.",
+        challenge: "Examine their radical Cost Structure (zero marketing spend) and word-of-mouth Channels."
+      }
+    ];
+
+    function assignProductsToGroups() {
+      if (groups.length === 0) {
+        alert("Please make the groups first in Stage 2!");
+        switchStage(2);
+        return;
+      }
+
+      // Shuffle products
+      const shuffledProducts = [...TOP_MARKET_PRODUCTS].sort(() => Math.random() - 0.5);
+
+      groups.forEach((g, idx) => {
+        g.product = shuffledProducts[idx % shuffledProducts.length];
+      });
+
+      saveStoredData();
+      renderAssignedCases();
+      renderGroups();
+      playAudioTone(720, 'sine', 0.25);
+    }
+
+    function renderAssignedCases() {
+      const grid = document.getElementById('assigned-cases-grid');
+      grid.innerHTML = '';
+
+      if (groups.length === 0 || !groups[0].product) {
+        grid.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; color: var(--text-dim); padding: 50px;">
+            Click "Randomly Assign Top Products" to reveal the real-world case study for each team!
+          </div>
+        `;
+        return;
+      }
+
+      groups.forEach(g => {
+        const prod = g.product;
+        const card = document.createElement('div');
+        card.className = 'case-card';
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="group-badge-num">GROUP ${g.groupNum} • ${g.name}</span>
+            <span class="case-type-badge ${prod.status.toLowerCase()}">
+              ${prod.status === 'FAILED' ? '🔥 FAILED CASE' : '🌟 SUCCESS CASE'}
+            </span>
+          </div>
+
+          <h3 class="case-title">${prod.name}</h3>
+          <p class="case-hook">${prod.hook}</p>
+
+          <div class="case-challenge">
+            🎯 <strong>BMC Mission:</strong> ${prod.challenge}
+          </div>
+
+          <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: auto; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
+            👥 ${g.members.map(m => m.name.split(' ')[0]).join(', ')}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    // =========================================================
+    // STAGE 4 LOGIC: 15-MINUTE PREPARATION TIMER (FULLSCREEN & CANCEL)
+    // =========================================================
+    let prepTimerSecs = 15 * 60;
+    let prepTimerInterval = null;
+    const TOTAL_PREP_SECS = 15 * 60;
+
+    function updatePrepTimerDisplay() {
+      const mins = Math.floor(prepTimerSecs / 60);
+      const secs = prepTimerSecs % 60;
+      const str = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+      document.getElementById('prep-timer-display').textContent = str;
+      document.getElementById('fs-timer-digits').textContent = str;
+
+      // Update progress ring
+      const ring = document.getElementById('timer-progress-ring');
+      const circumference = 2 * Math.PI * 140; // ~880
+      const fraction = prepTimerSecs / TOTAL_PREP_SECS;
+      const offset = circumference * (1 - fraction);
+      ring.style.strokeDashoffset = offset;
+
+      if (prepTimerSecs <= 60) {
+        ring.style.stroke = '#f43f5e';
+      } else if (prepTimerSecs <= 300) {
+        ring.style.stroke = '#f59e0b';
+      } else {
+        ring.style.stroke = 'var(--primary)';
+      }
+    }
+
+    function togglePrepTimer() {
+      const btnStage = document.getElementById('btn-prep-toggle');
+      const btnFs = document.getElementById('btn-fs-toggle');
+
+      if (prepTimerInterval) {
+        clearInterval(prepTimerInterval);
+        prepTimerInterval = null;
+        btnStage.textContent = '▶ Resume Timer';
+        btnStage.className = 'timer-action-btn start';
+        if (btnFs) btnFs.textContent = '▶ Resume';
+        playAudioTone(480, 'sine', 0.1);
+      } else {
+        btnStage.textContent = '⏸ Pause Timer';
+        btnStage.className = 'timer-action-btn pause';
+        if (btnFs) btnFs.textContent = '⏸ Pause';
+        playAudioTone(640, 'sine', 0.15);
+
+        prepTimerInterval = setInterval(() => {
+          if (prepTimerSecs > 0) {
+            prepTimerSecs--;
+            updatePrepTimerDisplay();
+
+            // Sound alerts at milestone
+            if (prepTimerSecs === 300) playAudioTone(700, 'sine', 0.3); // 5 min
+            if (prepTimerSecs === 60) playAudioTone(880, 'sawtooth', 0.4); // 1 min
+          } else {
+            clearInterval(prepTimerInterval);
+            prepTimerInterval = null;
+            btnStage.textContent = '🎉 Time Up!';
+            btnStage.className = 'timer-action-btn start';
+            if (btnFs) btnFs.textContent = 'Time Up!';
+            playAudioTone(950, 'sawtooth', 0.8);
+            alert("⏰ 15-Minute Canvas Prep Time is complete! Ready for presentations!");
+          }
+        }, 1000);
+      }
+    }
+
+    function adjustPrepTimer(delta) {
+      prepTimerSecs = Math.max(0, prepTimerSecs + delta);
+      updatePrepTimerDisplay();
+    }
+
+    function resetPrepTimer() {
+      if (prepTimerInterval) {
+        clearInterval(prepTimerInterval);
+        prepTimerInterval = null;
+      }
+      prepTimerSecs = TOTAL_PREP_SECS;
+      updatePrepTimerDisplay();
+      document.getElementById('btn-prep-toggle').textContent = '▶ Start 15 Min Timer';
+      document.getElementById('btn-prep-toggle').className = 'timer-action-btn start';
+      playAudioTone(400, 'sine', 0.1);
+    }
+
+    function openFullscreenTimer() {
+      document.getElementById('timer-fullscreen-overlay').classList.add('open');
+      playAudioTone(520, 'sine', 0.1);
+    }
+
+    function closeFullscreenTimer() {
+      document.getElementById('timer-fullscreen-overlay').classList.remove('open');
+      playAudioTone(380, 'sine', 0.08);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeFullscreenTimer();
+        closeScoreModal();
+      }
+    });
+
+    // =========================================================
+    // STAGE 5 LOGIC: 3-MIN PITCH & BLIND PEER SCORING
+    // =========================================================
+    let pitchTimerSecs = 3 * 60;
+    let pitchTimerInterval = null;
+
+    function generatePresentationOrder() {
+      if (groups.length === 0) {
+        alert("Please create groups in Stage 2 first!");
+        switchStage(2);
+        return;
+      }
+      presentationOrder = [...groups].sort(() => Math.random() - 0.5);
+      activePitchIndex = 0;
+      renderPitchQueue();
+      selectPitchTeam(0);
+      playAudioTone(640, 'sine', 0.2);
+    }
+
+    function renderPitchQueue() {
+      const list = document.getElementById('pitch-queue-list');
+      list.innerHTML = '';
+
+      presentationOrder.forEach((team, idx) => {
+        const item = document.createElement('div');
+        item.className = `pitch-queue-item ${idx === activePitchIndex ? 'active' : ''}`;
+        const hasScore = secretScores[team.id] !== undefined;
+
+        item.innerHTML = `
+          <div>
+            <div style="font-family: var(--font-mono); font-size: 0.72rem; color: #38bdf8;">PITCH #${idx + 1}</div>
+            <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${team.name}</div>
+          </div>
+          <div>
+            ${hasScore 
+              ? `<span title="Score recorded secretly">🔒 Scored</span>` 
+              : `<span style="font-size: 0.75rem; color: var(--text-dim);">Pending</span>`
+            }
+          </div>
+        `;
+        item.addEventListener('click', () => selectPitchTeam(idx));
+        list.appendChild(item);
+      });
+    }
+
+    function selectPitchTeam(idx) {
+      if (!presentationOrder[idx]) return;
+      activePitchIndex = idx;
+      renderPitchQueue();
+      resetPitchTimer();
+
+      const team = presentationOrder[idx];
+      document.getElementById('spotlight-pitch-tag').textContent = `PITCH ${idx + 1} OF ${presentationOrder.length}`;
+      document.getElementById('spotlight-team-name').textContent = `Group ${team.groupNum} — ${team.name}`;
+      document.getElementById('spotlight-members-line').textContent = 
+        `Presenters: ${team.members.map(m => `${m.name} (${m.dept})`).join(' • ')}`;
+
+      const prodBadge = document.getElementById('spotlight-product-badge');
+      if (team.product) {
+        prodBadge.innerHTML = `
+          <span class="case-type-badge ${team.product.status.toLowerCase()}">
+            ${team.product.name} (${team.product.status})
+          </span>
+        `;
+      } else {
+        prodBadge.innerHTML = '';
+      }
+
+      // Update secret score status
+      const scoreBox = document.getElementById('score-status-text');
+      if (secretScores[team.id] !== undefined) {
+        scoreBox.innerHTML = `✅ Marks Recorded Secretly (Average Hidden for Suspense 🔒)`;
+        scoreBox.style.color = '#34d399';
+      } else {
+        scoreBox.innerHTML = `Scores for this team: NOT ENTERED YET`;
+        scoreBox.style.color = '#facc15';
+      }
+    }
+
+    function togglePitchTimer() {
+      const digits = document.getElementById('pitch-clock-digits');
+      const btn = document.getElementById('btn-pitch-toggle');
+
+      if (pitchTimerInterval) {
+        clearInterval(pitchTimerInterval);
+        pitchTimerInterval = null;
+        btn.textContent = '▶ Resume Pitch';
+        playAudioTone(480, 'sine', 0.1);
+      } else {
+        btn.textContent = '⏸ Pause';
+        playAudioTone(640, 'sine', 0.15);
+
+        pitchTimerInterval = setInterval(() => {
+          if (pitchTimerSecs > 0) {
+            pitchTimerSecs--;
+            const mins = Math.floor(pitchTimerSecs / 60);
+            const secs = pitchTimerSecs % 60;
+            digits.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+            if (pitchTimerSecs <= 30) {
+              digits.classList.add('danger');
+              if (pitchTimerSecs === 30) playAudioTone(720, 'sawtooth', 0.3);
+            }
+          } else {
+            clearInterval(pitchTimerInterval);
+            pitchTimerInterval = null;
+            btn.textContent = '⏰ Time Up!';
+            playAudioTone(920, 'sawtooth', 0.8);
+            alert("⏰ 3-Minute Pitch complete! Collect peer marks now!");
+          }
+        }, 1000);
+      }
+    }
+
+    function resetPitchTimer() {
+      if (pitchTimerInterval) {
+        clearInterval(pitchTimerInterval);
+        pitchTimerInterval = null;
+      }
+      pitchTimerSecs = 3 * 60;
+      const digits = document.getElementById('pitch-clock-digits');
+      digits.textContent = '03:00';
+      digits.classList.remove('danger');
+      document.getElementById('btn-pitch-toggle').textContent = '▶ Start 3 Min Pitch';
+    }
+
+    // Modal for entering peer scores
+    function openScoreModal() {
+      if (!presentationOrder || presentationOrder.length === 0) {
+        alert("Please generate the presentation order first!");
+        return;
+      }
+
+      const activeTeam = presentationOrder[activePitchIndex];
+      document.getElementById('modal-scoring-team-name').textContent = activeTeam.name;
+
+      const grid = document.getElementById('score-inputs-grid');
+      grid.innerHTML = '';
+
+      // Ask for marks from each OTHER team
+      const otherTeams = groups.filter(g => g.id !== activeTeam.id);
+      otherTeams.forEach(other => {
+        const item = document.createElement('div');
+        item.className = 'score-input-item';
+        item.innerHTML = `
+          <label>Mark from Group ${other.groupNum} (${other.name}):</label>
+          <input type="number" min="1" max="10" step="0.5" placeholder="e.g. 8.5" class="peer-mark-input" data-team-id="${other.id}" oninput="calcSecretAverageLive()">
+        `;
+        grid.appendChild(item);
+      });
+
+      document.getElementById('calculated-average-preview').textContent = 'Secret Average: --';
+      document.getElementById('peer-score-modal').classList.add('open');
+      playAudioTone(540, 'sine', 0.12);
+    }
+
+    function closeScoreModal(e) {
+      if (e && e.target !== document.getElementById('peer-score-modal')) return;
+      document.getElementById('peer-score-modal').classList.remove('open');
+    }
+
+    function calcSecretAverageLive() {
+      const inputs = document.querySelectorAll('.peer-mark-input');
+      let sum = 0;
+      let count = 0;
+      inputs.forEach(input => {
+        const val = parseFloat(input.value);
+        if (!isNaN(val) && val >= 0) {
+          sum += val;
+          count++;
+        }
+      });
+      if (count > 0) {
+        const avg = (sum / count).toFixed(2);
+        document.getElementById('calculated-average-preview').textContent = `Secret Average: ${avg} / 10 (🔒 Won't be shown to audience)`;
+      } else {
+        document.getElementById('calculated-average-preview').textContent = `Secret Average: --`;
+      }
+    }
+
+    function saveSecretPeerMarks() {
+      const activeTeam = presentationOrder[activePitchIndex];
+      const inputs = document.querySelectorAll('.peer-mark-input');
+      let sum = 0;
+      let count = 0;
+
+      inputs.forEach(input => {
+        const val = parseFloat(input.value);
+        if (!isNaN(val) && val >= 0) {
+          sum += val;
+          count++;
+        }
+      });
+
+      if (count === 0) {
+        alert("Please enter at least one mark from the peer groups!");
+        return;
+      }
+
+      const avg = parseFloat((sum / count).toFixed(2));
+      secretScores[activeTeam.id] = avg;
+      saveStoredData();
+
+      closeScoreModal();
+      selectPitchTeam(activePitchIndex);
+      playAudioTone(880, 'sine', 0.25);
+      alert(`✅ Marks recorded for ${activeTeam.name}!\nAverage has been stored secretly.`);
+    }
+
+    // =========================================================
+    // STAGE 6 LOGIC: GRAND LEADERBOARD REVEAL & PODIUM
+    // =========================================================
+    function renderLeaderboard() {
+      if (groups.length === 0) return;
+
+      // Assign default randomized high scores if none entered for demo
+      groups.forEach(g => {
+        if (secretScores[g.id] === undefined) {
+          secretScores[g.id] = parseFloat((7.5 + Math.random() * 2.3).toFixed(2));
+        }
+      });
+
+      // Sort teams descending by score
+      const ranked = [...groups].sort((a, b) => {
+        const scoreA = secretScores[a.id] || 0;
+        const scoreB = secretScores[b.id] || 0;
+        return scoreB - scoreA;
+      });
+
+      // 1st Place Gold
+      if (ranked[0]) {
+        document.getElementById('p-gold-name').textContent = ranked[0].name;
+        document.getElementById('p-gold-product').textContent = ranked[0].product ? ranked[0].product.name : 'BMC Model';
+        document.getElementById('p-gold-score').textContent = `${secretScores[ranked[0].id]} / 10`;
+      }
+
+      // 2nd Place Silver
+      if (ranked[1]) {
+        document.getElementById('p-silver-name').textContent = ranked[1].name;
+        document.getElementById('p-silver-product').textContent = ranked[1].product ? ranked[1].product.name : 'BMC Model';
+        document.getElementById('p-silver-score').textContent = `${secretScores[ranked[1].id]} / 10`;
+      }
+
+      // 3rd Place Bronze
+      if (ranked[2]) {
+        document.getElementById('p-bronze-name').textContent = ranked[2].name;
+        document.getElementById('p-bronze-product').textContent = ranked[2].product ? ranked[2].product.name : 'BMC Model';
+        document.getElementById('p-bronze-score').textContent = `${secretScores[ranked[2].id]} / 10`;
+      }
+
+      // Remaining Standings Table
+      const table = document.getElementById('remaining-teams-table');
+      table.innerHTML = '';
+
+      ranked.forEach((team, idx) => {
+        const row = document.createElement('div');
+        row.className = 'ranking-row';
+        row.innerHTML = `
+          <span class="ranking-rank">#${idx + 1}</span>
+          <span class="ranking-team">Group ${team.groupNum} — ${team.name}</span>
+          <span class="ranking-product">${team.product ? team.product.name : 'Product'}</span>
+          <span class="ranking-score">${secretScores[team.id]} / 10</span>
+        `;
+        table.appendChild(row);
+      });
+
+      triggerConfettiCelebration();
+    }
+
+    // =========================================================
+    // CONFETTI CELEBRATION PARTICLE ENGINE
+    // =========================================================
+    let confettiParticles = [];
+    let confettiAnimId = null;
+
+    function triggerConfettiCelebration() {
+      playAudioTone(880, 'sine', 0.4);
+      const canvas = document.getElementById('confetti-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      confettiParticles = [];
+      const colors = ['#facc15', '#38bdf8', '#34d399', '#f43f5e', '#c084fc', '#ffffff'];
+
+      for (let i = 0; i < 180; i++) {
+        confettiParticles.push({
+          x: canvas.width / 2,
+          y: canvas.height * 0.4,
+          vx: (Math.random() - 0.5) * 18,
+          vy: (Math.random() - 0.7) * 18,
+          size: Math.random() * 8 + 5,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rotation: Math.random() * 360,
+          vRot: (Math.random() - 0.5) * 12,
+          opacity: 1
+        });
+      }
+
+      if (confettiAnimId) cancelAnimationFrame(confettiAnimId);
+      animateConfetti(ctx, canvas);
+    }
+
+    function animateConfetti(ctx, canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+
+      confettiParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.35; // gravity
+        p.rotation += p.vRot;
+        p.opacity -= 0.006;
+
+        if (p.opacity > 0) {
+          alive = true;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = Math.max(0, p.opacity);
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        }
+      });
+
+      if (alive) {
+        confettiAnimId = requestAnimationFrame(() => animateConfetti(ctx, canvas));
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    // =========================================================
+    // STAGE NAVIGATION
+    // =========================================================
+    window.switchStage = function(stageNum) {
+      currentStage = stageNum;
+      document.querySelectorAll('.stage-section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.stage-tab-btn').forEach((btn, idx) => {
+        if (idx + 1 === stageNum) btn.classList.add('active');
+        else btn.classList.remove('active');
+      });
+
+      const activeSection = document.getElementById(`stage-${stageNum}`);
+      if (activeSection) activeSection.classList.add('active');
+
+      if (stageNum === 2 && groups.length > 0) renderGroups();
+      if (stageNum === 3) renderAssignedCases();
+      if (stageNum === 5) {
+        if (presentationOrder.length === 0) generatePresentationOrder();
+        else renderPitchQueue();
+      }
+      if (stageNum === 6) renderLeaderboard();
+
+      playAudioTone(440, 'sine', 0.08);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+  </script>
+</body>
+</html>

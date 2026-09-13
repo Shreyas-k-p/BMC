@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Participant Portal | BMC Workshop SNMIMT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #030718;
+      --bg-card: rgba(13, 25, 66, 0.9);
+      --border-color: rgba(56, 189, 248, 0.28);
+      --border-glow: rgba(56, 189, 248, 0.6);
+      --primary: #38bdf8;
+      --primary-dark: #0284c7;
+      --accent-yellow: #facc15;
+      --accent-emerald: #34d399;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 50% 0%, #0e246a 0%, #040922 65%, #01030d 100%);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* College / IEDC Header */
+    .portal-header {
+      text-align: center;
+      padding: 16px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .portal-logos {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge-pill {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--primary);
+      font-size: 0.72rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    .portal-title {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #fff;
+      margin-top: 4px;
+    }
+
+    .portal-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Main Card */
+    .card {
+      background: var(--bg-card);
+      border: 1.5px solid var(--border-color);
+      border-radius: 20px;
+      padding: 24px 20px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(16px);
+      transition: all 0.3s ease;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #93c5fd;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: rgba(2, 6, 23, 0.75);
+      border: 1.5px solid rgba(56, 189, 248, 0.25);
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      padding: 12px 14px;
+      border-radius: 10px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+      background: rgba(4, 12, 38, 0.95);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 70px;
+    }
+
+    .btn-submit {
+      width: 100%;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #020617;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 24px rgba(2, 132, 199, 0.4);
+      transition: all 0.2s;
+    }
+
+    .btn-submit:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(56, 189, 248, 0.5);
+    }
+
+    /* Live Check-in Success State */
+    .success-panel {
+      display: none;
+      text-align: center;
+      padding: 10px 4px;
+    }
+
+    .check-icon {
+      font-size: 3rem;
+      display: inline-block;
+      animation: bounceIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes bounceIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      70% { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .participant-name-display {
+      font-family: var(--font-display);
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #fff;
+      margin-top: 6px;
+    }
+
+    .participant-dept-display {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-top: 6px;
+    }
+
+    .live-status-bubble {
+      margin-top: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Group Assigned Card */
+    .group-assigned-box {
+      margin-top: 20px;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.25));
+      border: 2px solid #f59e0b;
+      border-radius: 16px;
+      padding: 18px;
+      text-align: left;
+      display: none;
+      animation: popGlow 0.5s ease both;
+    }
+
+    @keyframes popGlow {
+      0% { transform: scale(0.9); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .group-num-tag {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 900;
+      color: #fde047;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .group-title-heading {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: #ffffff;
+      margin: 4px 0 10px 0;
+    }
+
+    .product-box {
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+
+    .product-label {
+      font-size: 0.72rem;
+      color: #facc15;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .product-name {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .teammates-list {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.2);
+    }
+
+    .teammates-title {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: #fed7aa;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .teammates-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .teammate-chip {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .teammate-chip.self {
+      border: 1px solid var(--primary);
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+      font-weight: 800;
+    }
+
+    /* Live Feed ticker of other peers */
+    .mini-live-counter {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #34d399;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 8px #34d399;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.5; }
+    }
+
+    .portal-footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="portal-header">
+      <div class="portal-logos">
+        <span class="badge-pill">SNMIMT MALIANJARA</span>
+        <span class="badge-pill">IEDC SNMIMT</span>
+        <span class="badge-pill">KSUM</span>
+      </div>
+      <h1 class="portal-title">BMC Startup Workshop</h1>
+      <p class="portal-subtitle">Live Participant Check-in & Team Portal</p>
+    </header>
+
+    <!-- Join Form Card -->
+    <div class="card" id="join-card">
+      <form id="join-form" onsubmit="handleJoin(event)">
+        <div class="form-group">
+          <label for="p-name">Your Full Name *</label>
+          <input type="text" id="p-name" placeholder="e.g. Rahul Krishnan" required autocomplete="name">
+        </div>
+
+        <div class="form-group">
+          <label for="p-dept">Your Department *</label>
+          <select id="p-dept" required>
+            <option value="" disabled selected>Select Department</option>
+            <option value="CSE">Computer Science & Engg (CSE)</option>
+            <option value="AI & DS">Artificial Intelligence & Data Science</option>
+            <option value="ECE">Electronics & Communication (ECE)</option>
+            <option value="ME">Mechanical Engineering (ME)</option>
+            <option value="CE">Civil Engineering (CE)</option>
+            <option value="EEE">Electrical & Electronics (EEE)</option>
+            <option value="OTHER">Other / Entrepreneur Club</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="p-comment">Live Shoutout / Startup Idea (Optional)</label>
+          <textarea id="p-comment" placeholder="What kind of business or product excites you? (Shows on projector screen!)"></textarea>
+        </div>
+
+        <button type="submit" class="btn-submit">
+          <span>🚀 Check-in to Workshop</span>
+        </button>
+      </form>
+    </div>
+
+    <!-- Checked-in Live Card -->
+    <div class="card" id="status-card" style="display: none;">
+      <div class="success-panel" id="success-panel" style="display: block;">
+        <div class="check-icon">🎉</div>
+        <div class="participant-name-display" id="display-name">Rahul Krishnan</div>
+        <div class="participant-dept-display" id="display-dept">CSE</div>
+
+        <div class="live-status-bubble" id="waiting-bubble">
+          <div style="font-weight: 800; color: #fff; margin-bottom: 4px;">✅ You are officially checked in!</div>
+          Look at the main projector screen. When the host initiates <strong>Make The Group</strong>, your team number, teammates, and assigned product case study will appear here automatically!
+        </div>
+
+        <!-- Assigned Group Card -->
+        <div class="group-assigned-box" id="group-assigned-box">
+          <div class="group-num-tag" id="my-group-tag">TEAM 01</div>
+          <div class="group-title-heading" id="my-group-name">The Innovators</div>
+
+          <div class="product-box" id="my-product-box">
+            <div class="product-label" id="my-product-status">MARKET FAILURE CASE STUDY</div>
+            <div class="product-name" id="my-product-name">Google Glass</div>
+          </div>
+
+          <div class="teammates-list">
+            <div class="teammates-title">Your Teammates (5-7 members):</div>
+            <div class="teammates-tags" id="my-teammates-tags">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-submit" onclick="resetMyCheckin()" style="margin-top: 20px; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; box-shadow: none; font-size: 0.88rem; padding: 10px;">
+          🔄 Change Name / Check-in again
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Status Footer -->
+    <div class="mini-live-counter">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="pulse-dot"></span>
+        <span id="live-connection-text">Connected to SNMIMT Workshop Host</span>
+      </div>
+      <div id="attendee-count-badge" style="font-family: var(--font-mono); font-weight: 700; color: var(--primary);">
+        Live Sync
+      </div>
+    </div>
+
+    <footer class="portal-footer">
+      IEDC SNMIMT Engineering College • Kerala Startup Mission
+    </footer>
+  </div>
+
+  <script>
+    const STORAGE_KEY_PARTICIPANTS = 'bmc_participants_data';
+    const STORAGE_KEY_GROUPS = 'bmc_groups_data';
+    const STORAGE_KEY_MY_INFO = 'bmc_my_saved_info';
+
+    // Broadcast channel for instantaneous cross-tab / cross-window sync
+    let syncChannel = null;
+    try {
+      syncChannel = new BroadcastChannel('bmc_workshop_channel');
+      syncChannel.onmessage = (event) => {
+        if (event.data.type === 'GROUPS_UPDATED' || event.data.type === 'PARTICIPANTS_UPDATED') {
+          checkMyGroupStatus();
+        }
+      };
+    } catch(e) {}
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY_GROUPS || e.key === STORAGE_KEY_PARTICIPANTS) {
+        checkMyGroupStatus();
+      }
+    });
+
+    // Check if already checked in
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem(STORAGE_KEY_MY_INFO);
+      if (saved) {
+        try {
+          const myInfo = JSON.parse(saved);
+          showCheckedInState(myInfo);
+        } catch(e) {}
+      }
+    });
+
+    function handleJoin(e) {
+      e.preventDefault();
+      const name = document.getElementById('p-name').value.trim();
+      const dept = document.getElementById('p-dept').value;
+      const comment = document.getElementById('p-comment').value.trim();
+
+      if (!name || !dept) return;
+
+      const myInfo = {
+        id: 'user_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+        name: name,
+        dept: dept,
+        comment: comment || "Ready to build a breakthrough business model!",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      // Save to localStorage
+      localStorage.setItem(STORAGE_KEY_MY_INFO, JSON.stringify(myInfo));
+
+      // Append to global participants list
+      let participants = [];
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY_PARTICIPANTS);
+        if (stored) participants = JSON.parse(stored);
+      } catch(err) {}
+
+      // Avoid duplicates with same name
+      const existingIdx = participants.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+      if (existingIdx !== -1) {
+        participants[existingIdx] = myInfo;
+      } else {
+        participants.push(myInfo);
+      }
+
+      localStorage.setItem(STORAGE_KEY_PARTICIPANTS, JSON.stringify(participants));
+
+      // Broadcast to host screen
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'PARTICIPANT_JOINED', participant: myInfo });
+      }
+
+      showCheckedInState(myInfo);
+    }
+
+    function showCheckedInState(myInfo) {
+      document.getElementById('join-card').style.display = 'none';
+      document.getElementById('status-card').style.display = 'block';
+
+      document.getElementById('display-name').textContent = myInfo.name;
+      document.getElementById('display-dept').textContent = myInfo.dept;
+
+      checkMyGroupStatus();
+    }
+
+    function checkMyGroupStatus() {
+      const saved = localStorage.getItem(STORAGE_KEY_MY_INFO);
+      if (!saved) return;
+      let myInfo;
+      try { myInfo = JSON.parse(saved); } catch(e) { return; }
+
+      let groups = [];
+      try {
+        const storedGroups = localStorage.getItem(STORAGE_KEY_GROUPS);
+        if (storedGroups) groups = JSON.parse(storedGroups);
+      } catch(e) {}
+
+      const groupAssignedBox = document.getElementById('group-assigned-box');
+      const waitingBubble = document.getElementById('waiting-bubble');
+
+      if (!groups || groups.length === 0) {
+        groupAssignedBox.style.display = 'none';
+        waitingBubble.style.display = 'block';
+        return;
+      }
+
+      // Find my group
+      const myGroup = groups.find(g => 
+        g.members && g.members.some(m => m.name.toLowerCase() === myInfo.name.toLowerCase())
+      );
+
+      if (myGroup) {
+        waitingBubble.style.display = 'none';
+        groupAssignedBox.style.display = 'block';
+
+        document.getElementById('my-group-tag').textContent = `GROUP ${myGroup.groupNum}`;
+        document.getElementById('my-group-name').textContent = myGroup.name || `Team ${myGroup.groupNum}`;
+
+        if (myGroup.product) {
+          document.getElementById('my-product-box').style.display = 'block';
+          document.getElementById('my-product-status').textContent = myGroup.product.status === 'FAILED' 
+            ? '🔥 MARKET FAILURE CASE STUDY' 
+            : '🌟 MARKET SUCCESS CASE STUDY';
+          document.getElementById('my-product-name').textContent = myGroup.product.name + ' — ' + (myGroup.product.hook || '');
+        } else {
+          document.getElementById('my-product-box').style.display = 'none';
+        }
+
+        const tagsContainer = document.getElementById('my-teammates-tags');
+        tagsContainer.innerHTML = '';
+        myGroup.members.forEach(member => {
+          const chip = document.createElement('div');
+          const isMe = member.name.toLowerCase() === myInfo.name.toLowerCase();
+          chip.className = `teammate-chip ${isMe ? 'self' : ''}`;
+          chip.textContent = `${member.name} (${member.dept})${isMe ? ' ★ You' : ''}`;
+          tagsContainer.appendChild(chip);
+        });
+      } else {
+        groupAssignedBox.style.display = 'none';
+        waitingBubble.style.display = 'block';
+      }
+    }
+
+    function resetMyCheckin() {
+      localStorage.removeItem(STORAGE_KEY_MY_INFO);
+      document.getElementById('join-card').style.display = 'block';
+      document.getElementById('status-card').style.display = 'none';
+    }
+
+    // Periodic check
+    setInterval(checkMyGroupStatus, 1500);
+  </script>
+</body>
+</html>
