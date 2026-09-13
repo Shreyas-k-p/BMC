@@ -63,12 +63,15 @@ function toDbStatus(status: SessionState): string {
   }
 }
 
-function fromDbStatus(dbStatus: string | undefined, currentUiStatus: SessionState): SessionState {
+function fromDbStatus(dbStatus: string | undefined, currentUiStatus: SessionState, uiState?: string | null): SessionState {
+  if (uiState && uiState !== 'LOBBY') {
+    return uiState as SessionState;
+  }
   if (!dbStatus) return currentUiStatus;
 
-  // RULE: When HOST local state is JOINING and Supabase returns LOBBY, DO NOT overwrite local JOINING state.
+  // RULE: DB LOBBY must NEVER force an active UI state back to LOBBY
   if (dbStatus === 'LOBBY') {
-    return currentUiStatus === 'JOINING' ? 'JOINING' : 'LOBBY';
+    return currentUiStatus !== 'LOBBY' ? currentUiStatus : 'JOINING';
   }
 
   if (dbStatus === 'PREPARATION') return 'PREPARATION';
@@ -184,10 +187,18 @@ class RealtimeSessionManager {
   private handleSessionRealtimeEvent(payload: any) {
     if (payload.new && payload.new.id === this.data.session.id) {
       const dbStatus = payload.new.status as string;
-      const mergedStatus = fromDbStatus(dbStatus, this.data.session.status);
-      console.log(`[BMC STATE] SUPABASE REALTIME BEFORE: ${this.data.session.status} AFTER: ${mergedStatus} SESSION ID: ${this.data.session.id}`);
+      const uiState = payload.new.ui_state as string | undefined;
+      const mergedStatus = uiState && uiState !== 'LOBBY' ? (uiState as SessionState) : fromDbStatus(dbStatus, this.data.session.status, uiState);
 
+      this.data.hasActiveSession = true;
       this.data.session.status = mergedStatus;
+      this.data.session.ui_state = mergedStatus;
+
+      console.log('[BMC] ACTIVE SESSION:', this.data.hasActiveSession);
+      console.log('[BMC] UI STATE:', this.data.session.status);
+      console.log('[BMC] DB STATUS:', dbStatus);
+      console.log('[BMC] SESSION ID:', this.data.session.id);
+
       if (mergedStatus !== 'LOBBY' && mergedStatus !== 'JOINING') {
         this.data.lobbyMessages = [];
       }
@@ -215,15 +226,22 @@ class RealtimeSessionManager {
         .maybeSingle();
 
       if (session && session.id === activeId) {
-        const mergedStatus = fromDbStatus(session.status, this.data.session.status);
-        console.log(`[BMC STATE] SUPABASE FETCH BEFORE: ${this.data.session.status} AFTER: ${mergedStatus} SESSION ID: ${activeId}`);
+        const uiState = session.ui_state;
+        const mergedStatus = uiState && uiState !== 'LOBBY' ? (uiState as SessionState) : fromDbStatus(session.status, this.data.session.status, uiState);
 
+        this.data.hasActiveSession = true;
         this.data.session = {
           ...this.data.session,
           ...session,
           code: session.code || activeCode,
-          status: mergedStatus
+          status: mergedStatus,
+          ui_state: mergedStatus
         };
+
+        console.log('[BMC] ACTIVE SESSION:', this.data.hasActiveSession);
+        console.log('[BMC] UI STATE:', this.data.session.status);
+        console.log('[BMC] DB STATUS:', session.status);
+        console.log('[BMC] SESSION ID:', activeId);
       }
 
       // Fetch all participants for current active session_id
@@ -366,6 +384,7 @@ class RealtimeSessionManager {
           id: newSessionId,
           code: code,
           status: 'JOINING',
+          ui_state: 'JOINING',
           host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
           created_at: new Date().toISOString(),
           preparation_duration: 15 * 60,
@@ -375,16 +394,34 @@ class RealtimeSessionManager {
         };
 
         const dbStatus = toDbStatus(newSessionObj.status);
-        const { data, error } = await supabase.from('sessions').insert({
+        let data = null;
+        let error = null;
+
+        // Attempt insert with ui_state first, fallback if column missing
+        const resUiState = await supabase.from('sessions').insert({
           id: newSessionObj.id,
           code: newSessionObj.code,
-          status: dbStatus
+          status: dbStatus,
+          ui_state: 'JOINING'
         }).select().single();
+
+        if (resUiState.error && resUiState.error.message?.includes('ui_state')) {
+          console.warn('[BMC STATE] sessions table missing ui_state column, inserting without ui_state...');
+          const resFallback = await supabase.from('sessions').insert({
+            id: newSessionObj.id,
+            code: newSessionObj.code,
+            status: dbStatus
+          }).select().single();
+          data = resFallback.data;
+          error = resFallback.error;
+        } else {
+          data = resUiState.data;
+          error = resUiState.error;
+        }
 
         console.log('[BMC STATE] SESSION INSERT RESULT', { data, error });
 
         if (error) {
-          // If unique constraint violation / collision, generate a new code and retry
           if (error.code === '23505' || (error as any).status === 409 || error.message?.includes('unique constraint')) {
             console.warn(`[BMC STATE] Session code "${code}" collided. Retrying with new code...`);
             code = generateSessionCode();
@@ -401,15 +438,14 @@ class RealtimeSessionManager {
 
         if (data) {
           insertedData = data;
-          console.log('[BMC STATE] BEFORE:', this.data.session.status, 'SESSION ID:', this.data.session.id);
-
           this.data = {
             hasActiveSession: true,
             session: {
               ...newSessionObj,
               ...data,
               code: data.code || code,
-              status: 'JOINING'
+              status: 'JOINING',
+              ui_state: 'JOINING'
             },
             participants: [],
             groups: [],
@@ -417,11 +453,13 @@ class RealtimeSessionManager {
             lobbyMessages: []
           };
 
-          console.log('[BMC STATE] AFTER:', this.data.session.status, 'SESSION ID:', this.data.session.id);
-          console.log('[BMC STATE] SESSION CREATED SUCCESS', { id: data.id, code: data.code, status: this.data.session.status });
+          console.log('[BMC] ACTIVE SESSION:', this.data.hasActiveSession);
+          console.log('[BMC] UI STATE:', this.data.session.status);
+          console.log('[BMC] DB STATUS:', dbStatus);
+          console.log('[BMC] SESSION ID:', data.id);
 
           this.notifyListeners();
-          // Do NOT call pullFromSupabase() here. The returned row is already stored atomically.
+          return;
         }
       }
 
@@ -434,21 +472,41 @@ class RealtimeSessionManager {
   }
 
   public async setSessionState(status: SessionState) {
-    console.log(`[BMC STATE] HOST EXPLICIT STAGE CHANGE BEFORE: ${this.data.session.status} AFTER: ${status} SESSION ID: ${this.data.session.id}`);
+    this.data.hasActiveSession = true;
     this.data.session.status = status;
+    this.data.session.ui_state = status;
     if (status !== 'LOBBY' && status !== 'JOINING') {
       this.data.lobbyMessages = [];
     }
 
+    const dbStatus = toDbStatus(status);
+    console.log('[BMC] ACTIVE SESSION:', this.data.hasActiveSession);
+    console.log('[BMC] UI STATE:', status);
+    console.log('[BMC] DB STATUS:', dbStatus);
+    console.log('[BMC] SESSION ID:', this.data.session.id);
+
     if (isSupabaseConfigured && supabase) {
       try {
-        const dbStatus = toDbStatus(status);
-        await supabase.from('sessions').update({ status: dbStatus }).eq('id', this.data.session.id);
+        const updateRes = await supabase.from('sessions').update({ status: dbStatus, ui_state: status }).eq('id', this.data.session.id);
+        if (updateRes.error && updateRes.error.message?.includes('ui_state')) {
+          await supabase.from('sessions').update({ status: dbStatus }).eq('id', this.data.session.id);
+        }
       } catch(e) {
         console.error('[BMC] Error updating session status in Supabase:', e);
       }
     }
 
+    this.notifyListeners();
+  }
+
+  public restartSession() {
+    console.log('[BMC STATE] HOST RESTART SESSION -> clearing active session');
+    this.data = getDefaultStore();
+    this.data.hasActiveSession = false;
+    console.log('[BMC] ACTIVE SESSION: false');
+    console.log('[BMC] UI STATE: LOBBY');
+    console.log('[BMC] DB STATUS: LOBBY');
+    console.log('[BMC] SESSION ID: none');
     this.notifyListeners();
   }
 

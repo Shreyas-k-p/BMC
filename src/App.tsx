@@ -21,10 +21,10 @@ import { StudentRateTeam } from './components/student/StudentRateTeam';
 import { StudentLeaderboard } from './components/student/StudentLeaderboard';
 
 export const App: React.FC = () => {
-  const { session, participants, groups, peerScores, lobbyMessages = [], actions } = useRealtimeSession();
+  const { hasActiveSession, session, participants, groups, peerScores, lobbyMessages = [], actions } = useRealtimeSession();
 
   // Print build version on render
-  console.log('[BMC BUILD VERSION] HOST-SYNC-FIX-2026-09-13-V2');
+  console.log('[BMC BUILD VERSION] ACTIVE-SESSION-FIX-2026-09-13-V3');
 
   // Extract session code from URL path /join/:sessionCode or query param ?join=
   const [urlSessionCode] = useState<string | null>(() => {
@@ -102,10 +102,10 @@ export const App: React.FC = () => {
     setShowGroupingAnim(true);
   };
 
-  const handleGroupingAnimComplete = () => {
+  const handleGroupingAnimComplete = async () => {
     setShowGroupingAnim(false);
     actions.generateGroups();
-    actions.setSessionState('GROUPS_READY');
+    await actions.setSessionState('GROUPS_READY');
   };
 
   // --- STUDENT ACTIONS ---
@@ -128,140 +128,141 @@ export const App: React.FC = () => {
       {/* ========================================================= */}
       {appMode === 'HOST' ? (
         <div className="min-h-screen flex flex-col">
-          {session.status !== 'LOBBY' && (
-            <HostControlBar
-              joinCode={session.code}
-              participantCount={participants.length}
-              currentStage={session.status}
-              onStageChange={(newStage) => actions.setSessionState(newStage)}
-            />
-          )}
-
-          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8">
-            {/* STAGE: LOBBY */}
-            {session.status === 'LOBBY' && (
+          {!hasActiveSession ? (
+            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8">
               <HostLanding
                 onCreateSession={(code) => handleStartSession(code)}
                 onJoinSession={(code) => handleStartSession(code)}
               />
-            )}
-
-            {/* STAGE: JOINING (QR + LIVE PARTICIPANTS) */}
-            {session.status === 'JOINING' && (
-              <HostQRJoin
+            </main>
+          ) : (
+            <>
+              <HostControlBar
                 joinCode={session.code}
-                joinUrl={studentJoinUrl}
-                participants={participants}
-                lobbyMessages={lobbyMessages}
-                onAddParticipant={(name, dept) => actions.addParticipant(name, dept, activeSessionCode)}
-                onAddDemoStudents={(count) => actions.addDemoStudents(count)}
-                onRemoveParticipant={(id) => actions.removeParticipant(id)}
-                onProceedToGrouping={() => handleStartGroupingAnim()}
-                onClearAll={() => actions.createNewSession(session.code)}
+                participantCount={participants.length}
+                currentStage={session.status}
+                onStageChange={(newStage) => actions.setSessionState(newStage)}
               />
-            )}
 
-            {/* STAGE: GROUP FORMATION ANIMATION */}
-            {showGroupingAnim && (
-              <GroupFormationAnimation
-                participants={participants}
-                expectedGroupCount={Math.max(1, Math.round(participants.length / 6))}
-                onAnimationComplete={handleGroupingAnimComplete}
-              />
-            )}
+              <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8">
+                {/* STAGE: JOINING (QR + LIVE PARTICIPANTS) */}
+                {session.status === 'JOINING' && (
+                  <HostQRJoin
+                    joinCode={session.code}
+                    joinUrl={studentJoinUrl}
+                    participants={participants}
+                    lobbyMessages={lobbyMessages}
+                    onAddParticipant={(name, dept) => actions.addParticipant(name, dept, activeSessionCode)}
+                    onAddDemoStudents={(count) => actions.addDemoStudents(count)}
+                    onRemoveParticipant={(id) => actions.removeParticipant(id)}
+                    onProceedToGrouping={() => handleStartGroupingAnim()}
+                    onClearAll={() => actions.createNewSession(session.code)}
+                  />
+                )}
 
-            {/* STAGE: GROUPS READY / REVIEW */}
-            {(session.status === 'GROUPING' || session.status === 'GROUPS_READY') && !showGroupingAnim && (
-              <HostGroupsReview
-                groups={groups}
-                totalParticipants={participants.length}
-                onRandomizeAgain={() => handleStartGroupingAnim()}
-                onConfirmTeams={() => {
-                  actions.confirmGroups();
-                }}
-              />
-            )}
+                {/* STAGE: GROUP FORMATION ANIMATION */}
+                {showGroupingAnim && (
+                  <GroupFormationAnimation
+                    participants={participants}
+                    expectedGroupCount={Math.max(1, Math.round(participants.length / 6))}
+                    onAnimationComplete={handleGroupingAnimComplete}
+                  />
+                )}
 
-            {/* STAGE: CAPTAIN SELECTION */}
-            {session.status === 'CAPTAIN_SELECTION' && (
-              <CaptainSelection
-                groups={groups}
-                onSelectCaptain={(groupId, participantId) => actions.selectTeamCaptain(groupId, participantId)}
-                onProceedToProducts={() => actions.assignProducts()}
-              />
-            )}
+                {/* STAGE: GROUPS READY / REVIEW */}
+                {(session.status === 'GROUPING' || session.status === 'GROUPS_READY') && !showGroupingAnim && (
+                  <HostGroupsReview
+                    groups={groups}
+                    totalParticipants={participants.length}
+                    onRandomizeAgain={() => handleStartGroupingAnim()}
+                    onConfirmTeams={() => {
+                      actions.confirmGroups();
+                    }}
+                  />
+                )}
 
-            {/* STAGE: PRODUCT REVEAL */}
-            {(session.status === 'PRODUCT_REVEAL' || session.status === 'PRODUCT_ASSIGNMENT') && (
-              <ProductReveal
-                groups={groups}
-                onAssignProducts={() => actions.assignProducts()}
-                onProceedToPrep={() => {
-                  actions.resetPrepTimer(15 * 60);
-                  actions.setSessionState('PREPARATION');
-                }}
-              />
-            )}
+                {/* STAGE: CAPTAIN SELECTION */}
+                {session.status === 'CAPTAIN_SELECTION' && (
+                  <CaptainSelection
+                    groups={groups}
+                    onSelectCaptain={(groupId, participantId) => actions.selectTeamCaptain(groupId, participantId)}
+                    onProceedToProducts={() => actions.assignProducts()}
+                  />
+                )}
 
-            {/* STAGE 1: 15-MINUTE PREPARATION TIMER */}
-            {session.status === 'PREPARATION' && (
-              <PrepTimer
-                stage="PREPARATION"
-                startedAt={session.preparation_started_at}
-                duration={session.preparation_duration}
-                onStart={() => actions.startPrepTimer()}
-                onPause={(remaining) => actions.pausePrepTimer(remaining)}
-                onReset={() => actions.resetPrepTimer(15 * 60)}
-                onProceedToNext={() => {
-                  actions.resetStudyTimer(10 * 60);
-                  actions.setSessionState('STUDY_TIME');
-                }}
-              />
-            )}
+                {/* STAGE: PRODUCT REVEAL */}
+                {(session.status === 'PRODUCT_REVEAL' || session.status === 'PRODUCT_ASSIGNMENT') && (
+                  <ProductReveal
+                    groups={groups}
+                    onAssignProducts={() => actions.assignProducts()}
+                    onProceedToPrep={() => {
+                      actions.resetPrepTimer(15 * 60);
+                      actions.setSessionState('PREPARATION');
+                    }}
+                  />
+                )}
 
-            {/* STAGE 2: 10-MINUTE PRODUCT STUDY TIMER */}
-            {session.status === 'STUDY_TIME' && (
-              <PrepTimer
-                stage="STUDY_TIME"
-                startedAt={session.study_started_at}
-                duration={session.study_duration}
-                onStart={() => actions.startStudyTimer()}
-                onPause={(remaining) => actions.pauseStudyTimer(remaining)}
-                onReset={() => actions.resetStudyTimer(10 * 60)}
-                onProceedToNext={() => actions.generatePresentationOrder()}
-              />
-            )}
+                {/* STAGE 1: 15-MINUTE PREPARATION TIMER */}
+                {session.status === 'PREPARATION' && (
+                  <PrepTimer
+                    stage="PREPARATION"
+                    startedAt={session.preparation_started_at}
+                    duration={session.preparation_duration}
+                    onStart={() => actions.startPrepTimer()}
+                    onPause={(remaining) => actions.pausePrepTimer(remaining)}
+                    onReset={() => actions.resetPrepTimer(15 * 60)}
+                    onProceedToNext={() => {
+                      actions.resetStudyTimer(10 * 60);
+                      actions.setSessionState('STUDY_TIME');
+                    }}
+                  />
+                )}
 
-            {/* STAGE: PRESENTATION ORDER & 3-MIN PITCH */}
-            {(session.status === 'PRESENTATION_ORDER' ||
-              session.status === 'PRESENTATION' ||
-              session.status === 'SCORING') && (
-              <PresentationStage
-                groups={groups}
-                currentGroupId={session.current_group_id}
-                pitchStartedAt={session.presentation_started_at}
-                pitchDuration={session.presentation_duration}
-                scoringOpen={Boolean(session.scoring_open)}
-                peerScores={peerScores}
-                totalParticipants={participants.length}
-                onGenerateOrder={() => actions.generatePresentationOrder()}
-                onSelectGroup={(id) => actions.setCurrentPresentingGroup(id)}
-                onStartPitch={() => actions.startPitchTimer()}
-                onPausePitch={(rem) => actions.pausePitchTimer(rem)}
-                onEndPitch={() => actions.endPitchAndOpenScoring()}
-                onSimulateCaptainScores={(groupId) => actions.simulateCaptainScores(groupId)}
-                onProceedToLeaderboard={() => actions.revealLeaderboard()}
-              />
-            )}
+                {/* STAGE 2: 10-MINUTE PRODUCT STUDY TIMER */}
+                {session.status === 'STUDY_TIME' && (
+                  <PrepTimer
+                    stage="STUDY_TIME"
+                    startedAt={session.study_started_at}
+                    duration={session.study_duration}
+                    onStart={() => actions.startStudyTimer()}
+                    onPause={(remaining) => actions.pauseStudyTimer(remaining)}
+                    onReset={() => actions.resetStudyTimer(10 * 60)}
+                    onProceedToNext={() => actions.generatePresentationOrder()}
+                  />
+                )}
 
-            {/* STAGE: GRAND LEADERBOARD PODIUM */}
-            {(session.status === 'LEADERBOARD' || session.status === 'FINAL_RESULTS' || session.status === 'COMPLETED') && (
-              <GrandLeaderboard
-                groups={groups}
-                onRestartSession={() => handleStartSession()}
-              />
-            )}
-          </main>
+                {/* STAGE: PRESENTATION ORDER & 3-MIN PITCH */}
+                {(session.status === 'PRESENTATION_ORDER' ||
+                  session.status === 'PRESENTATION' ||
+                  session.status === 'SCORING') && (
+                  <PresentationStage
+                    groups={groups}
+                    currentGroupId={session.current_group_id}
+                    pitchStartedAt={session.presentation_started_at}
+                    pitchDuration={session.presentation_duration}
+                    scoringOpen={Boolean(session.scoring_open)}
+                    peerScores={peerScores}
+                    totalParticipants={participants.length}
+                    onGenerateOrder={() => actions.generatePresentationOrder()}
+                    onSelectGroup={(id) => actions.setCurrentPresentingGroup(id)}
+                    onStartPitch={() => actions.startPitchTimer()}
+                    onPausePitch={(rem) => actions.pausePitchTimer(rem)}
+                    onEndPitch={() => actions.endPitchAndOpenScoring()}
+                    onSimulateCaptainScores={(groupId) => actions.simulateCaptainScores(groupId)}
+                    onProceedToLeaderboard={() => actions.revealLeaderboard()}
+                  />
+                )}
+
+                {/* STAGE: GRAND LEADERBOARD PODIUM */}
+                {(session.status === 'LEADERBOARD' || session.status === 'FINAL_RESULTS' || session.status === 'COMPLETED') && (
+                  <GrandLeaderboard
+                    groups={groups}
+                    onRestartSession={() => actions.restartSession()}
+                  />
+                )}
+              </main>
+            </>
+          )}
         </div>
       ) : (
         /* ========================================================= */
@@ -283,9 +284,9 @@ export const App: React.FC = () => {
               onSendMessage={(pId, pName, text) => actions.sendLobbyMessage(pId, pName, text)}
             />
           ) : (session.status === 'GROUPING' || session.status === 'GROUPS_READY' || session.status === 'CAPTAIN_SELECTION') ? (
-            myGroup ? (
+            groups.length > 0 ? (
               <StudentTeamReveal
-                group={myGroup}
+                groups={groups}
                 currentParticipant={currentParticipant}
               />
             ) : (

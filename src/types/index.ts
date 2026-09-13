@@ -68,6 +68,8 @@ export interface Session {
   id: string;
   code: string;
   status: SessionState;
+  hasActiveSession?: boolean;
+  ui_state?: SessionState;
   host_key?: string;
   created_at: string;
   preparation_started_at?: string | null;
@@ -76,7 +78,7 @@ export interface Session {
   study_duration: number; // 600s for 10 min product study
   current_group_id?: string | null;
   presentation_started_at?: string | null;
-  presentation_duration: number; // 180s for 3 min presentation
+  presentation_duration: number; // 3 min presentation
   scoring_open?: boolean;
 }
 

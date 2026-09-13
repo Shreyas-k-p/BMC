@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT NOT NULL UNIQUE,
     status session_status NOT NULL DEFAULT 'LOBBY',
+    ui_state TEXT DEFAULT 'LOBBY',
     host_key TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     preparation_started_at TIMESTAMPTZ,
@@ -33,6 +34,8 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     presentation_duration INT DEFAULT 180,
     scoring_open BOOLEAN DEFAULT FALSE
 );
+
+ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS ui_state TEXT DEFAULT 'LOBBY';
 
 -- 2. PARTICIPANTS TABLE
 CREATE TABLE IF NOT EXISTS public.participants (
