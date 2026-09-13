@@ -5,7 +5,7 @@
 -- 1. SESSIONS TABLE
 CREATE TABLE IF NOT EXISTS public.sessions (
     id TEXT PRIMARY KEY,
-    join_code TEXT NOT NULL UNIQUE,
+    code TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL DEFAULT 'LOBBY',
     host_key TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),

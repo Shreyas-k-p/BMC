@@ -20,6 +20,7 @@ function getDefaultStore(joinCode = 'BMC2026'): StoreData {
   return {
     session: {
       id: 'sess_' + Date.now(),
+      code: joinCode,
       join_code: joinCode,
       status: 'LOBBY',
       host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
@@ -148,11 +149,12 @@ class RealtimeSessionManager {
   private async pullFromSupabase() {
     if (!supabase) return;
     try {
-      // 1. Fetch session matching current join code or ID
+      const activeCode = this.data.session.code || this.data.session.join_code;
+      // 1. Fetch session matching current code or ID
       const { data: session } = await supabase
         .from('sessions')
         .select('*')
-        .eq('join_code', this.data.session.join_code)
+        .eq('code', activeCode)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -160,7 +162,9 @@ class RealtimeSessionManager {
       if (session) {
         this.data.session = {
           ...this.data.session,
-          ...session
+          ...session,
+          code: session.code || activeCode,
+          join_code: session.code || activeCode
         };
       }
 
@@ -202,9 +206,10 @@ class RealtimeSessionManager {
         .maybeSingle();
 
       if (!existing) {
+        const activeCode = this.data.session.code || this.data.session.join_code;
         const { error } = await supabase.from('sessions').insert({
           id: this.data.session.id,
-          join_code: this.data.session.join_code,
+          code: activeCode,
           status: this.data.session.status,
           host_key: this.data.session.host_key,
           created_at: this.data.session.created_at,
@@ -278,6 +283,7 @@ class RealtimeSessionManager {
   public async syncSessionByJoinCode(joinCode: string, mode: 'HOST' | 'STUDENT' = 'HOST'): Promise<Session | null> {
     if (!joinCode) return null;
     const code = joinCode.toUpperCase().trim();
+    this.data.session.code = code;
     this.data.session.join_code = code;
 
     console.log('[BMC] SYNCING SESSION BY CODE', { code, mode });
@@ -287,7 +293,7 @@ class RealtimeSessionManager {
         const { data: existingSession, error: syncErr } = await supabase
           .from('sessions')
           .select('*')
-          .eq('join_code', code)
+          .eq('code', code)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -297,7 +303,9 @@ class RealtimeSessionManager {
         if (existingSession) {
           this.data.session = {
             ...this.data.session,
-            ...existingSession
+            ...existingSession,
+            code: existingSession.code || code,
+            join_code: existingSession.code || code
           };
           if (mode === 'HOST') {
             console.log(`[BMC] HOST SESSION ID:\n${existingSession.id}`);
@@ -330,6 +338,7 @@ class RealtimeSessionManager {
 
     const newSessionObj: Session = {
       id: newSessionId,
+      code: code,
       join_code: code,
       status: 'JOINING',
       host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
@@ -340,17 +349,17 @@ class RealtimeSessionManager {
       scoring_open: false
     };
 
-    // Mandatory Host Supabase INSERT / UPSERT and verification
+    // Mandatory Host Supabase INSERT / UPSERT using sessions.code
     const { data, error } = await supabase.from('sessions').upsert({
       id: newSessionObj.id,
-      join_code: newSessionObj.join_code,
+      code: newSessionObj.code,
       status: newSessionObj.status,
       host_key: newSessionObj.host_key,
       created_at: newSessionObj.created_at,
       preparation_duration: newSessionObj.preparation_duration,
       study_duration: newSessionObj.study_duration,
       presentation_duration: newSessionObj.presentation_duration
-    }, { onConflict: 'join_code' }).select().maybeSingle();
+    }, { onConflict: 'code' }).select().maybeSingle();
 
     console.log('[BMC] SESSION INSERT RESULT', { data, error });
 
@@ -361,14 +370,19 @@ class RealtimeSessionManager {
 
     // Only if error === null AND data exists:
     this.data = {
-      session: { ...newSessionObj, ...data },
+      session: {
+        ...newSessionObj,
+        ...data,
+        code: data.code || code,
+        join_code: data.code || code
+      },
       participants: [],
       groups: [],
       peerScores: [],
       lobbyMessages: []
     };
 
-    console.log('[BMC] SESSION CREATED SUCCESS', { id: data.id, code: data.join_code });
+    console.log('[BMC] SESSION CREATED SUCCESS', { id: data.id, code: data.code });
 
     this.saveAndBroadcast();
     await this.pullFromSupabase();
@@ -438,7 +452,7 @@ class RealtimeSessionManager {
       throw new Error('Name is required.');
     }
 
-    const codeToUse = (targetJoinCode || this.data.session.join_code || 'BMC2026').toUpperCase().trim();
+    const codeToUse = (targetJoinCode || this.data.session.code || this.data.session.join_code || 'BMC2026').toUpperCase().trim();
 
     if (!isSupabaseConfigured || !supabase) {
       console.error('[BMC] Supabase is not configured on this environment.');
@@ -447,13 +461,13 @@ class RealtimeSessionManager {
 
     console.log('[BMC] LOOKING FOR SESSION', { code: codeToUse });
 
-    // 1. Mandatory Supabase Session Resolution by join code (STRICT: NO AUTO-CREATION FROM STUDENT)
+    // 1. Mandatory Supabase Session Resolution by code (STRICT: NO AUTO-CREATION FROM STUDENT)
     let dbSession = null;
     try {
       const { data, error: sessErr } = await supabase
         .from('sessions')
         .select('*')
-        .eq('join_code', codeToUse)
+        .eq('code', codeToUse)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -470,13 +484,15 @@ class RealtimeSessionManager {
 
     // STRICT RULE: A student must NEVER create a session.
     if (!dbSession) {
-      console.error(`[BMC] Session "${codeToUse}" not found in Supabase.`);
+      console.error(`[BMC] Session code "${codeToUse}" not found in Supabase.`);
       throw new Error('Session not found or has not been started by the host.');
     }
 
     this.data.session = {
       ...this.data.session,
-      ...dbSession
+      ...dbSession,
+      code: dbSession.code || codeToUse,
+      join_code: dbSession.code || codeToUse
     };
 
     console.log(`[BMC] STUDENT SESSION ID:\n${this.data.session.id}`);

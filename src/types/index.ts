@@ -66,6 +66,7 @@ export interface Group {
 
 export interface Session {
   id: string;
+  code: string;
   join_code: string;
   status: SessionState;
   host_key: string;
