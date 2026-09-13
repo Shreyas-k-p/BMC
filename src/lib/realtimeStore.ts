@@ -6,9 +6,9 @@ import { generateDemoParticipants } from './mockData';
 import { supabase, isSupabaseConfigured, supabaseUrl } from './supabase';
 
 const LOCAL_STORAGE_KEY = 'bmc_live_session_store_v2';
-const BROADCAST_CHANNEL_NAME = 'bmc_live_realtime_channel_v2';
 
 interface StoreData {
+  hasActiveSession: boolean;
   session: Session;
   participants: Participant[];
   groups: Group[];
@@ -82,11 +82,12 @@ function fromDbStatus(dbStatus: string | undefined, currentUiStatus: SessionStat
   return (dbStatus as SessionState) || currentUiStatus;
 }
 
-function getDefaultStore(joinCode = 'BMC2026'): StoreData {
+function getDefaultStore(): StoreData {
   return {
+    hasActiveSession: false,
     session: {
       id: generateUUID(),
-      code: joinCode,
+      code: 'BMC' + Math.floor(100 + Math.random() * 900),
       status: 'LOBBY',
       host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
       created_at: new Date().toISOString(),
@@ -105,32 +106,12 @@ function getDefaultStore(joinCode = 'BMC2026'): StoreData {
 class RealtimeSessionManager {
   private data: StoreData;
   private listeners: Set<(data: StoreData) => void> = new Set();
-  private channel: BroadcastChannel | null = null;
 
   constructor() {
     this.data = this.loadFromStorage() || getDefaultStore();
 
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      this.channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
-      this.channel.onmessage = (event) => {
-        if (event.data && event.data.type === 'SYNC_STATE') {
-          this.data = event.data.payload;
-          this.notifyListeners();
-        }
-      };
-    }
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', (e) => {
-        if (e.key === LOCAL_STORAGE_KEY && e.newValue) {
-          try {
-            this.data = JSON.parse(e.newValue);
-            this.notifyListeners();
-          } catch(err) {}
-        }
-      });
-    }
-
+    // Supabase Realtime is the single source of truth for cross-client state.
+    // Competing sources like BroadcastChannel and storage events have been removed to prevent state corruption.
     if (isSupabaseConfigured && supabase) {
       this.initSupabaseSubscriptions();
       this.startHeartbeatPolling();
@@ -140,10 +121,7 @@ class RealtimeSessionManager {
   private initSupabaseSubscriptions() {
     if (!supabase) return;
     try {
-      // 1. Initial Database Fetch
-      this.pullFromSupabase();
-
-      // 2. Realtime Subscriptions for participants, sessions, lobby_messages, groups
+      // Realtime Subscriptions for participants, sessions, lobby_messages, groups
       supabase
         .channel('bmc_live_realtime_channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, (payload) => {
@@ -168,6 +146,7 @@ class RealtimeSessionManager {
     if (!payload.new && !payload.old) return;
     const item = payload.new || payload.old;
     if (item && item.session_id === this.data.session.id) {
+      console.log(`[BMC STATE] SUPABASE REALTIME PARTICIPANT EVENT (${payload.eventType}) SESSION ID: ${this.data.session.id}`);
       if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         const index = this.data.participants.findIndex(p => p.id === item.id);
         if (index >= 0) {
@@ -178,7 +157,7 @@ class RealtimeSessionManager {
       } else if (payload.eventType === 'DELETE') {
         this.data.participants = this.data.participants.filter(p => p.id !== item.id);
       }
-      this.saveAndBroadcast();
+      this.saveAndNotify();
     }
   }
 
@@ -191,7 +170,7 @@ class RealtimeSessionManager {
         if (this.data.lobbyMessages.length > 30) {
           this.data.lobbyMessages = this.data.lobbyMessages.slice(-30);
         }
-        this.saveAndBroadcast();
+        this.saveAndNotify();
       }
     }
   }
@@ -199,17 +178,14 @@ class RealtimeSessionManager {
   private handleSessionRealtimeEvent(payload: any) {
     if (payload.new && payload.new.id === this.data.session.id) {
       const dbStatus = payload.new.status as string;
-      console.log('[BMC] REALTIME SESSION EVENT, DB SESSION STATUS:', dbStatus);
-      console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
-
       const mergedStatus = fromDbStatus(dbStatus, this.data.session.status);
-      this.data.session.status = mergedStatus;
-      console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
+      console.log(`[BMC STATE] SUPABASE REALTIME BEFORE: ${this.data.session.status} AFTER: ${mergedStatus} SESSION ID: ${this.data.session.id}`);
 
+      this.data.session.status = mergedStatus;
       if (mergedStatus !== 'LOBBY' && mergedStatus !== 'JOINING') {
         this.data.lobbyMessages = [];
       }
-      this.saveAndBroadcast();
+      this.saveAndNotify();
     }
   }
 
@@ -220,56 +196,53 @@ class RealtimeSessionManager {
   }
 
   private async pullFromSupabase() {
-    if (!supabase) return;
+    if (!supabase || !this.data.hasActiveSession) return;
     try {
+      const activeId = this.data.session.id;
       const activeCode = this.data.session.code;
-      // 1. Fetch session matching current code
+
+      // 1. Fetch session matching current active session ID
       const { data: session } = await supabase
         .from('sessions')
         .select('*')
-        .eq('code', activeCode)
-        .order('created_at', { ascending: false })
-        .limit(1)
+        .eq('id', activeId)
         .maybeSingle();
 
-      if (session) {
-        console.log('[BMC] DB SESSION STATUS:', session.status);
-        console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
-
+      if (session && session.id === activeId) {
         const mergedStatus = fromDbStatus(session.status, this.data.session.status);
+        console.log(`[BMC STATE] SUPABASE FETCH BEFORE: ${this.data.session.status} AFTER: ${mergedStatus} SESSION ID: ${activeId}`);
+
         this.data.session = {
           ...this.data.session,
           ...session,
           code: session.code || activeCode,
           status: mergedStatus
         };
-
-        console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
       }
 
-      // 2. Fetch all participants for current session_id (BOTH real and demo)
+      // 2. Fetch all participants for current active session_id
       const { data: dbParticipants } = await supabase
         .from('participants')
         .select('*')
-        .eq('session_id', this.data.session.id)
+        .eq('session_id', activeId)
         .order('joined_at', { ascending: true });
 
       if (dbParticipants) {
         this.data.participants = dbParticipants as Participant[];
       }
 
-      // 3. Fetch all lobby messages for current session_id
+      // 3. Fetch all lobby messages for current active session_id
       const { data: dbMessages } = await supabase
         .from('lobby_messages')
         .select('*')
-        .eq('session_id', this.data.session.id)
+        .eq('session_id', activeId)
         .order('created_at', { ascending: true });
 
       if (dbMessages) {
         this.data.lobbyMessages = dbMessages as LobbyMessage[];
       }
 
-      this.saveAndBroadcast();
+      this.saveAndNotify();
     } catch(e) {
       console.error('Error pulling data from Supabase:', e);
     }
@@ -284,22 +257,12 @@ class RealtimeSessionManager {
     return null;
   }
 
-  private saveAndBroadcast() {
+  private saveAndNotify() {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(this.data));
       } catch(e) {}
     }
-
-    if (this.channel) {
-      try {
-        this.channel.postMessage({
-          type: 'SYNC_STATE',
-          payload: this.data
-        });
-      } catch(e) {}
-    }
-
     this.notifyListeners();
   }
 
@@ -322,10 +285,27 @@ class RealtimeSessionManager {
 
   private startHeartbeatPolling() {
     if (typeof window === 'undefined') return;
-    setInterval(() => {
-      if (this.data.session.status === 'LOBBY' || this.data.session.status === 'JOINING') {
-        this.pullFromSupabase();
-      }
+    setInterval(async () => {
+      if (!this.data.hasActiveSession || !supabase) return;
+
+      // Heartbeat only refreshes participants for the active session ID.
+      // It MUST NOT touch or mutate this.data.session.status!
+      try {
+        const { data: dbParticipants } = await supabase
+          .from('participants')
+          .select('*')
+          .eq('session_id', this.data.session.id)
+          .order('joined_at', { ascending: true });
+
+        if (dbParticipants) {
+          const countBefore = this.data.participants.length;
+          this.data.participants = dbParticipants as Participant[];
+          if (countBefore !== dbParticipants.length) {
+            console.log(`[BMC STATE] HEARTBEAT PARTICIPANTS UPDATE (count: ${dbParticipants.length}) SESSION ID: ${this.data.session.id}`);
+            this.saveAndNotify();
+          }
+        }
+      } catch(e) {}
     }, 3000);
   }
 
@@ -333,7 +313,7 @@ class RealtimeSessionManager {
     if (!joinCode) return null;
     const code = joinCode.toUpperCase().trim();
 
-    console.log('[BMC] SYNCING SESSION BY CODE', { code, mode });
+    console.log('[BMC STATE] STUDENT SYNC BY CODE:', code);
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -345,13 +325,13 @@ class RealtimeSessionManager {
           .limit(1)
           .maybeSingle();
 
-        console.log('[BMC] SYNC SESSION RESULT', { data: existingSession, error: syncErr });
+        console.log('[BMC STATE] STUDENT SYNC RESULT', { data: existingSession, error: syncErr });
 
         if (existingSession) {
-          console.log('[BMC] DB SESSION STATUS:', existingSession.status);
-          console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
-
           const mergedStatus = fromDbStatus(existingSession.status, this.data.session.status);
+          console.log(`[BMC STATE] STUDENT SYNC BEFORE: ${this.data.session.status} AFTER: ${mergedStatus} SESSION ID: ${existingSession.id}`);
+
+          this.data.hasActiveSession = true;
           this.data.session = {
             ...this.data.session,
             ...existingSession,
@@ -359,8 +339,6 @@ class RealtimeSessionManager {
             status: mergedStatus
           };
 
-          console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
-          console.log(`[BMC] ${mode} SESSION ID:\n${existingSession.id}`);
           await this.pullFromSupabase();
           return existingSession as Session;
         }
@@ -375,8 +353,8 @@ class RealtimeSessionManager {
     const code = joinCode?.toUpperCase().trim() || 'BMC' + Math.floor(100 + Math.random() * 900);
     const newSessionId = generateUUID();
 
+    console.log(`[BMC STATE] HOST CREATE -> JOINING (session_id: ${newSessionId}, code: ${code})`);
     console.log('[BMC] SUPABASE URL:', supabaseUrl);
-    console.log('[BMC] CREATING SESSION', { code, id: newSessionId });
 
     if (!isSupabaseConfigured || !supabase) {
       console.error('[BMC] Supabase is not configured on this environment.');
@@ -406,7 +384,7 @@ class RealtimeSessionManager {
     console.log('[BMC] SESSION INSERT RESULT', { data, error });
 
     if (error || !data) {
-      console.error('[BMC] SESSION CREATION FAILED IN SUPABASE:', {
+      console.error('[BMC STATE] HOST CREATE FAILED IN SUPABASE:', {
         message: error?.message,
         code: error?.code,
         details: error?.details,
@@ -415,10 +393,11 @@ class RealtimeSessionManager {
       throw new Error(`Unable to create session: ${error?.message || 'Database rejected insertion'}`);
     }
 
-    console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
+    console.log('[BMC STATE] BEFORE:', this.data.session.status, 'SESSION ID:', this.data.session.id);
 
-    // Set status to JOINING explicitly for the Host UI
+    // Atomic Host Creation: Set hasActiveSession = true and status = 'JOINING'
     this.data = {
+      hasActiveSession: true,
       session: {
         ...newSessionObj,
         ...data,
@@ -431,14 +410,15 @@ class RealtimeSessionManager {
       lobbyMessages: []
     };
 
-    console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
-    console.log('[BMC] SESSION CREATED SUCCESS', { id: data.id, code: data.code, status: this.data.session.status });
+    console.log('[BMC STATE] AFTER:', this.data.session.status, 'SESSION ID:', this.data.session.id);
+    console.log('[BMC STATE] SESSION CREATED SUCCESS', { id: data.id, code: data.code, status: this.data.session.status });
 
-    this.saveAndBroadcast();
-    await this.pullFromSupabase();
+    this.saveAndNotify();
+    // Do NOT call pullFromSupabase() here. The returned row is already stored atomically.
   }
 
   public async setSessionState(status: SessionState) {
+    console.log(`[BMC STATE] HOST EXPLICIT STAGE CHANGE BEFORE: ${this.data.session.status} AFTER: ${status} SESSION ID: ${this.data.session.id}`);
     this.data.session.status = status;
     if (status !== 'LOBBY' && status !== 'JOINING') {
       this.data.lobbyMessages = [];
@@ -453,7 +433,7 @@ class RealtimeSessionManager {
       }
     }
 
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public async sendLobbyMessage(participantId: string, participantName: string, text: string) {
@@ -494,7 +474,7 @@ class RealtimeSessionManager {
       this.data.lobbyMessages = this.data.lobbyMessages.slice(-30);
     }
 
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public async addParticipant(name: string, department: Department, targetJoinCode?: string): Promise<Participant> {
@@ -510,7 +490,7 @@ class RealtimeSessionManager {
       throw new Error('Unable to join session. Realtime database connection is not configured.');
     }
 
-    console.log('[BMC] LOOKING FOR SESSION BY CODE', { code: codeToUse });
+    console.log('[BMC STATE] STUDENT LOOKING UP SESSION CODE:', codeToUse);
 
     // 1. Mandatory Supabase Session Resolution by code (STRICT: NO AUTO-CREATION FROM STUDENT)
     let dbSession = null;
@@ -523,7 +503,7 @@ class RealtimeSessionManager {
         .limit(1)
         .maybeSingle();
 
-      console.log('[BMC] STUDENT SESSION LOOKUP RESULT', { data, error: sessErr });
+      console.log('[BMC STATE] STUDENT SESSION LOOKUP RESULT', { data, error: sessErr });
 
       if (sessErr) {
         console.error('[BMC] Supabase session fetch error:', sessErr);
@@ -539,10 +519,10 @@ class RealtimeSessionManager {
       throw new Error('Session not found or has not been started by the host.');
     }
 
-    console.log('[BMC] DB SESSION STATUS:', dbSession.status);
-    console.log('[BMC] LOCAL STATUS BEFORE DB MERGE:', this.data.session.status);
-
     const mergedStatus = fromDbStatus(dbSession.status, this.data.session.status);
+    console.log(`[BMC STATE] STUDENT ADD PARTICIPANT BEFORE: ${this.data.session.status} AFTER: ${mergedStatus} SESSION ID: ${dbSession.id}`);
+
+    this.data.hasActiveSession = true;
     this.data.session = {
       ...this.data.session,
       ...dbSession,
@@ -550,8 +530,7 @@ class RealtimeSessionManager {
       status: mergedStatus
     };
 
-    console.log('[BMC] LOCAL STATUS AFTER DB MERGE:', this.data.session.status);
-    console.log(`[BMC] STUDENT SESSION ID:\n${this.data.session.id}`);
+    console.log(`[BMC STATE] STUDENT SESSION ID:\n${this.data.session.id}`);
 
     // 2. Session Validation (Status must be LOBBY or JOINING in UI)
     if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
@@ -575,7 +554,7 @@ class RealtimeSessionManager {
         console.error('[BMC] Supabase participant update error:', updateErr);
         throw new Error('Unable to update join status. Please try again.');
       }
-      this.saveAndBroadcast();
+      this.saveAndNotify();
       return existing;
     }
 
@@ -590,7 +569,7 @@ class RealtimeSessionManager {
       is_demo: false
     };
 
-    console.log('[BMC] INSERTING PARTICIPANT', {
+    console.log('[BMC STATE] INSERTING PARTICIPANT', {
       id: participant.id,
       name: participant.name,
       dept: participant.department,
@@ -609,16 +588,16 @@ class RealtimeSessionManager {
       is_demo: false
     });
 
-    console.log('[BMC] PARTICIPANT INSERT RESULT', { id: participant.id, error: insertErr });
+    console.log('[BMC STATE] PARTICIPANT INSERT RESULT', { id: participant.id, error: insertErr });
 
     if (insertErr) {
-      console.error('[BMC] PARTICIPANT INSERT FAILED:', insertErr);
+      console.error('[BMC STATE] PARTICIPANT INSERT FAILED:', insertErr);
       throw new Error(insertErr.message || 'Unable to join the session. Please try again.');
     }
 
     // 5. Update local state & broadcast ONLY after DB insert succeeds
     this.data.participants.push(participant);
-    this.saveAndBroadcast();
+    this.saveAndNotify();
     return participant;
   }
 
@@ -655,7 +634,7 @@ class RealtimeSessionManager {
       }
     });
 
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public simulateCaptainScores(groupId: string) {
@@ -694,7 +673,7 @@ class RealtimeSessionManager {
       supabase.from('participants').delete().eq('id', participantId).then(() => {}, () => {});
     }
 
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public generateGroups(): Group[] {
@@ -708,13 +687,12 @@ class RealtimeSessionManager {
       });
     });
 
-    this.saveAndBroadcast();
+    this.saveAndNotify();
     return newGroups;
   }
 
   public confirmGroups() {
-    this.data.session.status = 'CAPTAIN_SELECTION';
-    this.saveAndBroadcast();
+    this.setSessionState('CAPTAIN_SELECTION');
   }
 
   public selectTeamCaptain(groupId: string, participantId: string) {
@@ -736,7 +714,7 @@ class RealtimeSessionManager {
       m.is_captain = m.id === member.id;
     });
 
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public assignProducts(): Group[] {
@@ -745,45 +723,42 @@ class RealtimeSessionManager {
       g.product = randomProducts[idx % randomProducts.length];
       g.product_id = g.product.id;
     });
-    this.data.session.status = 'PRODUCT_REVEAL';
-    this.saveAndBroadcast();
+    this.setSessionState('PRODUCT_REVEAL');
     return this.data.groups;
   }
 
   public startPrepTimer() {
     this.data.session.preparation_started_at = new Date().toISOString();
-    this.data.session.status = 'PREPARATION';
-    this.saveAndBroadcast();
+    this.setSessionState('PREPARATION');
   }
 
   public pausePrepTimer(remainingSecs: number) {
     this.data.session.preparation_started_at = null;
     this.data.session.preparation_duration = remainingSecs;
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public resetPrepTimer(durationSecs = 15 * 60) {
     this.data.session.preparation_started_at = null;
     this.data.session.preparation_duration = durationSecs;
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public startStudyTimer() {
     this.data.session.study_started_at = new Date().toISOString();
-    this.data.session.status = 'STUDY_TIME';
-    this.saveAndBroadcast();
+    this.setSessionState('STUDY_TIME');
   }
 
   public pauseStudyTimer(remainingSecs: number) {
     this.data.session.study_started_at = null;
     this.data.session.study_duration = remainingSecs;
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public resetStudyTimer(durationSecs = 10 * 60) {
     this.data.session.study_started_at = null;
     this.data.session.study_duration = durationSecs;
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public generatePresentationOrder(): Group[] {
@@ -792,9 +767,8 @@ class RealtimeSessionManager {
       g.presentation_order = idx + 1;
     });
     this.data.groups = shuffled;
-    this.data.session.status = 'PRESENTATION_ORDER';
     this.data.session.current_group_id = shuffled[0]?.id || null;
-    this.saveAndBroadcast();
+    this.setSessionState('PRESENTATION_ORDER');
     return shuffled;
   }
 
@@ -803,26 +777,24 @@ class RealtimeSessionManager {
     this.data.session.presentation_started_at = null;
     this.data.session.presentation_duration = 3 * 60;
     this.data.session.scoring_open = false;
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public startPitchTimer() {
     this.data.session.presentation_started_at = new Date().toISOString();
-    this.data.session.status = 'PRESENTATION';
-    this.saveAndBroadcast();
+    this.setSessionState('PRESENTATION');
   }
 
   public pausePitchTimer(remainingSecs: number) {
     this.data.session.presentation_started_at = null;
     this.data.session.presentation_duration = remainingSecs;
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   public endPitchAndOpenScoring() {
     this.data.session.presentation_started_at = null;
     this.data.session.scoring_open = true;
-    this.data.session.status = 'SCORING';
-    this.saveAndBroadcast();
+    this.setSessionState('SCORING');
   }
 
   public submitPeerScore(groupId: string, captainParticipantId: string, score: number) {
@@ -872,7 +844,7 @@ class RealtimeSessionManager {
     }
 
     this.recalculateGroupScores(groupId);
-    this.saveAndBroadcast();
+    this.saveAndNotify();
   }
 
   private recalculateGroupScores(groupId: string) {
@@ -894,8 +866,7 @@ class RealtimeSessionManager {
       }
     });
 
-    this.data.session.status = 'LEADERBOARD';
-    this.saveAndBroadcast();
+    this.setSessionState('LEADERBOARD');
   }
 }
 
