@@ -76,20 +76,19 @@ export const App: React.FC = () => {
 
   const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
   const activeSessionCode = urlSessionCode || session.code;
-  const studentJoinUrl = `${origin}/join/${activeSessionCode}`;
+  const studentJoinUrl = `${origin}/join/${session.code}`;
 
-  // Automatically sync session ID with Supabase based on join code and mode
+  // Automatically sync session ID with Supabase ONLY for Student mode via URL
   useEffect(() => {
-    if (activeSessionCode) {
-      actions.syncSessionByJoinCode(activeSessionCode, appMode);
+    if (appMode === 'STUDENT' && urlSessionCode) {
+      actions.syncSessionByJoinCode(urlSessionCode, 'STUDENT');
     }
-  }, [activeSessionCode, appMode]);
+  }, [appMode, urlSessionCode]);
 
   // --- HOST ACTIONS ---
   const handleStartSession = async (customCode?: string) => {
     try {
       await actions.createNewSession(customCode);
-      await actions.setSessionState('JOINING');
     } catch (err: any) {
       console.error('[BMC] Session creation error:', err);
       alert(err.message || 'Unable to create session. Please check the database connection.');

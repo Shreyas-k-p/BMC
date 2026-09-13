@@ -172,14 +172,14 @@ class RealtimeSessionManager {
 
   private handleSessionRealtimeEvent(payload: any) {
     if (payload.new && payload.new.id === this.data.session.id) {
-      // Map DB status back if needed, preserving local detailed UI state if in lobby group
-      const newStatus = payload.new.status as SessionState;
-      if (newStatus === 'LOBBY') {
-        if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
-          this.data.session.status = 'LOBBY';
-        }
-      } else {
-        this.data.session.status = newStatus;
+      const dbStatus = payload.new.status as SessionState;
+      const currentUiStatus = this.data.session.status;
+      if (dbStatus === 'LOBBY' && currentUiStatus === 'JOINING') {
+        // Preserve JOINING UI state when DB reports LOBBY
+        return;
+      }
+      this.data.session.status = dbStatus;
+      if (dbStatus !== 'LOBBY') {
         this.data.lobbyMessages = [];
       }
       this.saveAndBroadcast();
@@ -206,10 +206,12 @@ class RealtimeSessionManager {
         .maybeSingle();
 
       if (session) {
+        const currentUiStatus = this.data.session.status;
         this.data.session = {
           ...this.data.session,
           ...session,
-          code: session.code || activeCode
+          code: session.code || activeCode,
+          status: (session.status === 'LOBBY' && currentUiStatus === 'JOINING') ? 'JOINING' : (session.status || currentUiStatus)
         };
       }
 
@@ -295,10 +297,9 @@ class RealtimeSessionManager {
     }, 3000);
   }
 
-  public async syncSessionByJoinCode(joinCode: string, mode: 'HOST' | 'STUDENT' = 'HOST'): Promise<Session | null> {
+  public async syncSessionByJoinCode(joinCode: string, mode: 'HOST' | 'STUDENT' = 'STUDENT'): Promise<Session | null> {
     if (!joinCode) return null;
     const code = joinCode.toUpperCase().trim();
-    this.data.session.code = code;
 
     console.log('[BMC] SYNCING SESSION BY CODE', { code, mode });
 
@@ -315,21 +316,16 @@ class RealtimeSessionManager {
         console.log('[BMC] SYNC SESSION RESULT', { data: existingSession, error: syncErr });
 
         if (existingSession) {
+          const currentUiStatus = this.data.session.status;
           this.data.session = {
             ...this.data.session,
             ...existingSession,
-            code: existingSession.code || code
+            code: existingSession.code || code,
+            status: (existingSession.status === 'LOBBY' && currentUiStatus === 'JOINING') ? 'JOINING' : (existingSession.status || currentUiStatus)
           };
-          if (mode === 'HOST') {
-            console.log(`[BMC] HOST SESSION ID:\n${existingSession.id}`);
-          } else {
-            console.log(`[BMC] STUDENT SESSION ID:\n${existingSession.id}`);
-          }
+          console.log(`[BMC] ${mode} SESSION ID:\n${existingSession.id}`);
           await this.pullFromSupabase();
           return existingSession as Session;
-        } else if (mode === 'HOST') {
-          await this.createNewSession(code);
-          return this.data.session;
         }
       } catch (e) {
         console.error('[BMC] Error syncing session by join code:', e);
@@ -383,11 +379,13 @@ class RealtimeSessionManager {
     }
 
     // Only if error === null AND data exists:
+    // Set status to JOINING explicitly for the Host UI
     this.data = {
       session: {
         ...newSessionObj,
         ...data,
-        code: data.code || code
+        code: data.code || code,
+        status: 'JOINING'
       },
       participants: [],
       groups: [],
@@ -395,7 +393,7 @@ class RealtimeSessionManager {
       lobbyMessages: []
     };
 
-    console.log('[BMC] SESSION CREATED SUCCESS', { id: data.id, code: data.code });
+    console.log('[BMC] SESSION CREATED SUCCESS', { id: data.id, code: data.code, status: this.data.session.status });
 
     this.saveAndBroadcast();
     await this.pullFromSupabase();
@@ -502,10 +500,12 @@ class RealtimeSessionManager {
       throw new Error('Session not found or has not been started by the host.');
     }
 
+    const currentUiStatus = this.data.session.status;
     this.data.session = {
       ...this.data.session,
       ...dbSession,
-      code: dbSession.code || codeToUse
+      code: dbSession.code || codeToUse,
+      status: (dbSession.status === 'LOBBY' && currentUiStatus === 'JOINING') ? 'JOINING' : (dbSession.status || currentUiStatus)
     };
 
     console.log(`[BMC] STUDENT SESSION ID:\n${this.data.session.id}`);
