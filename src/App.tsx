@@ -103,7 +103,7 @@ export const App: React.FC = () => {
 
   // --- STUDENT ACTIONS ---
   const handleStudentJoin = async (name: string, dept: Department) => {
-    const p = await actions.addParticipant(name, dept);
+    const p = await actions.addParticipant(name, dept, activeSessionCode);
     setCurrentParticipant(p);
     localStorage.setItem('bmc_live_my_participant', JSON.stringify(p));
   };
@@ -146,7 +146,7 @@ export const App: React.FC = () => {
                 joinUrl={studentJoinUrl}
                 participants={participants}
                 lobbyMessages={lobbyMessages}
-                onAddParticipant={(name, dept) => actions.addParticipant(name, dept)}
+                onAddParticipant={(name, dept) => actions.addParticipant(name, dept, activeSessionCode)}
                 onAddDemoStudents={(count) => actions.addDemoStudents(count)}
                 onRemoveParticipant={(id) => actions.removeParticipant(id)}
                 onProceedToGrouping={() => handleStartGroupingAnim()}
