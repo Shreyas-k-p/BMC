@@ -69,9 +69,9 @@ function fromDbStatus(dbStatus: string | undefined, currentUiStatus: SessionStat
   }
   if (!dbStatus) return currentUiStatus;
 
-  // RULE: DB LOBBY must NEVER force an active UI state back to LOBBY
+  // RULE: DB status LOBBY MUST NEVER downgrade an active frontend stage
   if (dbStatus === 'LOBBY') {
-    return currentUiStatus !== 'LOBBY' ? currentUiStatus : 'JOINING';
+    return currentUiStatus;
   }
 
   if (dbStatus === 'PREPARATION') return 'PREPARATION';
@@ -186,20 +186,43 @@ class RealtimeSessionManager {
 
   private handleSessionRealtimeEvent(payload: any) {
     if (payload.new && payload.new.id === this.data.session.id) {
+      const currentStatus = this.data.session.status;
+      const dbUiState = payload.new.ui_state as SessionState | undefined;
       const dbStatus = payload.new.status as string;
-      const uiState = payload.new.ui_state as string | undefined;
-      const mergedStatus = uiState && uiState !== 'LOBBY' ? (uiState as SessionState) : fromDbStatus(dbStatus, this.data.session.status, uiState);
+
+      let nextStatus = currentStatus;
+
+      if (dbUiState && dbUiState !== 'LOBBY') {
+        nextStatus = dbUiState;
+      } else if (dbStatus === 'LOBBY') {
+        // LOBBY is a coarse DB state. NEVER downgrade an active frontend stage.
+        nextStatus = currentStatus;
+      } else if (dbStatus === 'PREPARATION') {
+        nextStatus = 'PREPARATION';
+      } else if (dbStatus === 'STUDY') {
+        nextStatus = 'STUDY_TIME';
+      } else if (dbStatus === 'PRESENTATION') {
+        nextStatus = currentStatus === 'PRESENTATION_ORDER' ? 'PRESENTATION_ORDER' : 'PRESENTATION';
+      } else if (dbStatus === 'SCORING') {
+        nextStatus = 'SCORING';
+      } else if (dbStatus === 'LEADERBOARD') {
+        nextStatus = 'LEADERBOARD';
+      } else if (dbStatus === 'COMPLETED') {
+        nextStatus = 'COMPLETED';
+      }
+
+      console.log(
+        '[BMC STATE] SUPABASE REALTIME',
+        'BEFORE:', currentStatus,
+        'DB:', dbStatus,
+        'AFTER:', nextStatus
+      );
 
       this.data.hasActiveSession = true;
-      this.data.session.status = mergedStatus;
-      this.data.session.ui_state = mergedStatus;
+      this.data.session.status = nextStatus;
+      this.data.session.ui_state = nextStatus;
 
-      console.log('[BMC] ACTIVE SESSION:', this.data.hasActiveSession);
-      console.log('[BMC] UI STATE:', this.data.session.status);
-      console.log('[BMC] DB STATUS:', dbStatus);
-      console.log('[BMC] SESSION ID:', this.data.session.id);
-
-      if (mergedStatus !== 'LOBBY' && mergedStatus !== 'JOINING') {
+      if (nextStatus !== 'LOBBY' && nextStatus !== 'JOINING') {
         this.data.lobbyMessages = [];
       }
       this.notifyListeners();
@@ -227,7 +250,7 @@ class RealtimeSessionManager {
 
       if (session && session.id === activeId) {
         const uiState = session.ui_state;
-        const mergedStatus = uiState && uiState !== 'LOBBY' ? (uiState as SessionState) : fromDbStatus(session.status, this.data.session.status, uiState);
+        const mergedStatus = fromDbStatus(session.status, this.data.session.status, uiState);
 
         this.data.hasActiveSession = true;
         this.data.session = {
@@ -238,10 +261,12 @@ class RealtimeSessionManager {
           ui_state: mergedStatus
         };
 
-        console.log('[BMC] ACTIVE SESSION:', this.data.hasActiveSession);
-        console.log('[BMC] UI STATE:', this.data.session.status);
-        console.log('[BMC] DB STATUS:', session.status);
-        console.log('[BMC] SESSION ID:', activeId);
+        console.log(
+          '[BMC STATE] SUPABASE PULL',
+          'BEFORE:', this.data.session.status,
+          'DB:', session.status,
+          'AFTER:', mergedStatus
+        );
       }
 
       // Fetch all participants for current active session_id

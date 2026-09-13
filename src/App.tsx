@@ -24,7 +24,7 @@ export const App: React.FC = () => {
   const { hasActiveSession, session, participants, groups, peerScores, lobbyMessages = [], actions } = useRealtimeSession();
 
   // Print build version on render
-  console.log('[BMC BUILD VERSION] ACTIVE-SESSION-FIX-2026-09-13-V3');
+  console.log('[BMC BUILD VERSION] REALTIME-LOBBY-GUARD-2026-09-13-V4');
 
   // Extract session code from URL path /join/:sessionCode or query param ?join=
   const [urlSessionCode] = useState<string | null>(() => {
