@@ -323,55 +323,52 @@ class RealtimeSessionManager {
 
     console.log('[BMC] CREATING SESSION', { code, id: newSessionId });
 
+    if (!isSupabaseConfigured || !supabase) {
+      console.error('[BMC] Supabase is not configured on this environment.');
+      throw new Error('Unable to create session. Realtime database connection is not configured.');
+    }
+
+    const newSessionObj: Session = {
+      id: newSessionId,
+      join_code: code,
+      status: 'JOINING',
+      host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
+      created_at: new Date().toISOString(),
+      preparation_duration: 15 * 60,
+      study_duration: 10 * 60,
+      presentation_duration: 3 * 60,
+      scoring_open: false
+    };
+
+    // Mandatory Host Supabase INSERT / UPSERT and verification
+    const { data, error } = await supabase.from('sessions').upsert({
+      id: newSessionObj.id,
+      join_code: newSessionObj.join_code,
+      status: newSessionObj.status,
+      host_key: newSessionObj.host_key,
+      created_at: newSessionObj.created_at,
+      preparation_duration: newSessionObj.preparation_duration,
+      study_duration: newSessionObj.study_duration,
+      presentation_duration: newSessionObj.presentation_duration
+    }, { onConflict: 'join_code' }).select().maybeSingle();
+
+    console.log('[BMC] SESSION INSERT RESULT', { data, error });
+
+    if (error || !data) {
+      console.error('[BMC] SESSION CREATION FAILED IN SUPABASE:', error);
+      throw new Error('Unable to create session. Please check the database connection.');
+    }
+
+    // Only if error === null AND data exists:
     this.data = {
-      session: {
-        id: newSessionId,
-        join_code: code,
-        status: 'JOINING',
-        host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
-        created_at: new Date().toISOString(),
-        preparation_duration: 15 * 60,
-        study_duration: 10 * 60,
-        presentation_duration: 3 * 60,
-        scoring_open: false
-      },
+      session: { ...newSessionObj, ...data },
       participants: [],
       groups: [],
       peerScores: [],
       lobbyMessages: []
     };
 
-    console.log(`[BMC] HOST SESSION ID:\n${this.data.session.id}`);
-
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase.from('sessions').upsert({
-          id: this.data.session.id,
-          join_code: this.data.session.join_code,
-          status: this.data.session.status,
-          host_key: this.data.session.host_key,
-          created_at: this.data.session.created_at,
-          preparation_duration: this.data.session.preparation_duration,
-          study_duration: this.data.session.study_duration,
-          presentation_duration: this.data.session.presentation_duration
-        }, { onConflict: 'join_code' }).select().maybeSingle();
-
-        console.log('[BMC] SESSION INSERT RESULT', { data, error });
-
-        if (error) {
-          console.error('[BMC] SESSION CREATION FAILED:', error);
-          throw new Error('Unable to create session in Supabase: ' + error.message);
-        }
-
-        if (data) {
-          this.data.session = { ...this.data.session, ...data };
-          console.log('[BMC] SESSION CREATED', { id: data.id, code: data.join_code });
-        }
-      } catch(e) {
-        console.error('[BMC] SESSION CREATION EXCEPTION:', e);
-        throw e;
-      }
-    }
+    console.log('[BMC] SESSION CREATED SUCCESS', { id: data.id, code: data.join_code });
 
     this.saveAndBroadcast();
     await this.pullFromSupabase();
@@ -442,7 +439,6 @@ class RealtimeSessionManager {
     }
 
     const codeToUse = (targetJoinCode || this.data.session.join_code || 'BMC2026').toUpperCase().trim();
-    this.data.session.join_code = codeToUse;
 
     if (!isSupabaseConfigured || !supabase) {
       console.error('[BMC] Supabase is not configured on this environment.');
@@ -451,7 +447,7 @@ class RealtimeSessionManager {
 
     console.log('[BMC] LOOKING FOR SESSION', { code: codeToUse });
 
-    // 1. Mandatory Supabase Session Resolution by join code
+    // 1. Mandatory Supabase Session Resolution by join code (STRICT: NO AUTO-CREATION FROM STUDENT)
     let dbSession = null;
     try {
       const { data, error: sessErr } = await supabase
@@ -472,46 +468,22 @@ class RealtimeSessionManager {
       console.error('[BMC] Exception fetching session from Supabase:', e);
     }
 
-    // If session row is missing in Supabase, auto-create it
+    // STRICT RULE: A student must NEVER create a session.
     if (!dbSession) {
-      console.warn(`[BMC] Session "${codeToUse}" not found in Supabase. Auto-creating session...`);
-      const autoSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-      const { data: createdSess, error: createErr } = await supabase.from('sessions').insert({
-        id: autoSessionId,
-        join_code: codeToUse,
-        status: 'JOINING',
-        host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
-        created_at: new Date().toISOString(),
-        preparation_duration: 15 * 60,
-        study_duration: 10 * 60,
-        presentation_duration: 3 * 60,
-        scoring_open: false
-      }).select().maybeSingle();
-
-      console.log('[BMC] AUTO-PROVISION SESSION RESULT', { data: createdSess, error: createErr });
-
-      if (createErr) {
-        console.error('[BMC] Error auto-creating session in Supabase:', createErr);
-        throw new Error(`Unable to join session "${codeToUse}". Session has not been created by host.`);
-      }
-
-      dbSession = createdSess || { id: autoSessionId, join_code: codeToUse, status: 'JOINING' };
-      this.data.session = {
-        ...this.data.session,
-        ...dbSession
-      };
-    } else {
-      this.data.session = {
-        ...this.data.session,
-        ...dbSession
-      };
+      console.error(`[BMC] Session "${codeToUse}" not found in Supabase.`);
+      throw new Error('Session not found or has not been started by the host.');
     }
+
+    this.data.session = {
+      ...this.data.session,
+      ...dbSession
+    };
 
     console.log(`[BMC] STUDENT SESSION ID:\n${this.data.session.id}`);
 
-    // 2. Session Validation
+    // 2. Session Validation (Status must be LOBBY or JOINING)
     if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
-      throw new Error('Unable to join the session. Session is no longer accepting new participants.');
+      throw new Error('Session is no longer accepting new participants.');
     }
 
     // 3. Check duplicate participant identity in current session

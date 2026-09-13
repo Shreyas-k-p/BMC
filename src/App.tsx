@@ -86,9 +86,14 @@ export const App: React.FC = () => {
   }, [activeSessionCode, appMode]);
 
   // --- HOST ACTIONS ---
-  const handleStartSession = (customCode?: string) => {
-    actions.createNewSession(customCode);
-    actions.setSessionState('JOINING');
+  const handleStartSession = async (customCode?: string) => {
+    try {
+      await actions.createNewSession(customCode);
+      await actions.setSessionState('JOINING');
+    } catch (err: any) {
+      console.error('[BMC] Session creation error:', err);
+      alert(err.message || 'Unable to create session. Please check the database connection.');
+    }
   };
 
   const handleStartGroupingAnim = () => {
