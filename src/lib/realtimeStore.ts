@@ -280,9 +280,11 @@ class RealtimeSessionManager {
     const code = joinCode.toUpperCase().trim();
     this.data.session.join_code = code;
 
+    console.log('[BMC] SYNCING SESSION BY CODE', { code, mode });
+
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data: existingSession } = await supabase
+        const { data: existingSession, error: syncErr } = await supabase
           .from('sessions')
           .select('*')
           .eq('join_code', code)
@@ -290,15 +292,17 @@ class RealtimeSessionManager {
           .limit(1)
           .maybeSingle();
 
+        console.log('[BMC] SYNC SESSION RESULT', { data: existingSession, error: syncErr });
+
         if (existingSession) {
           this.data.session = {
             ...this.data.session,
             ...existingSession
           };
           if (mode === 'HOST') {
-            console.log(`HOST SESSION ID:\n${existingSession.id}`);
+            console.log(`[BMC] HOST SESSION ID:\n${existingSession.id}`);
           } else {
-            console.log(`STUDENT SESSION ID:\n${existingSession.id}`);
+            console.log(`[BMC] STUDENT SESSION ID:\n${existingSession.id}`);
           }
           await this.pullFromSupabase();
           return existingSession as Session;
@@ -307,7 +311,7 @@ class RealtimeSessionManager {
           return this.data.session;
         }
       } catch (e) {
-        console.error('Error syncing session by join code:', e);
+        console.error('[BMC] Error syncing session by join code:', e);
       }
     }
     return null;
@@ -316,6 +320,8 @@ class RealtimeSessionManager {
   public async createNewSession(joinCode?: string) {
     const code = joinCode?.toUpperCase().trim() || 'BMC' + Math.floor(100 + Math.random() * 900);
     const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    console.log('[BMC] CREATING SESSION', { code, id: newSessionId });
 
     this.data = {
       session: {
@@ -335,11 +341,11 @@ class RealtimeSessionManager {
       lobbyMessages: []
     };
 
-    console.log(`HOST SESSION ID:\n${this.data.session.id}`);
+    console.log(`[BMC] HOST SESSION ID:\n${this.data.session.id}`);
 
     if (isSupabaseConfigured && supabase) {
       try {
-        const { error } = await supabase.from('sessions').upsert({
+        const { data, error } = await supabase.from('sessions').upsert({
           id: this.data.session.id,
           join_code: this.data.session.join_code,
           status: this.data.session.status,
@@ -348,12 +354,22 @@ class RealtimeSessionManager {
           preparation_duration: this.data.session.preparation_duration,
           study_duration: this.data.session.study_duration,
           presentation_duration: this.data.session.presentation_duration
-        }, { onConflict: 'join_code' });
+        }, { onConflict: 'join_code' }).select().maybeSingle();
+
+        console.log('[BMC] SESSION INSERT RESULT', { data, error });
+
         if (error) {
-          console.error('Error upserting new session in Supabase:', error);
+          console.error('[BMC] SESSION CREATION FAILED:', error);
+          throw new Error('Unable to create session in Supabase: ' + error.message);
+        }
+
+        if (data) {
+          this.data.session = { ...this.data.session, ...data };
+          console.log('[BMC] SESSION CREATED', { id: data.id, code: data.join_code });
         }
       } catch(e) {
-        console.error('Exception upserting new session in Supabase:', e);
+        console.error('[BMC] SESSION CREATION EXCEPTION:', e);
+        throw e;
       }
     }
 
@@ -371,7 +387,7 @@ class RealtimeSessionManager {
       try {
         await supabase.from('sessions').update({ status }).eq('id', this.data.session.id);
       } catch(e) {
-        console.error('Error updating session status in Supabase:', e);
+        console.error('[BMC] Error updating session status in Supabase:', e);
       }
     }
 
@@ -406,7 +422,7 @@ class RealtimeSessionManager {
         created_at: msg.created_at
       });
       if (error) {
-        console.error('Supabase message insert error:', error);
+        console.error('[BMC] Supabase message insert error:', error);
       }
     }
 
@@ -429,9 +445,11 @@ class RealtimeSessionManager {
     this.data.session.join_code = codeToUse;
 
     if (!isSupabaseConfigured || !supabase) {
-      console.error('Supabase is not configured on this environment (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY).');
+      console.error('[BMC] Supabase is not configured on this environment.');
       throw new Error('Unable to join session. Realtime database connection is not configured.');
     }
+
+    console.log('[BMC] LOOKING FOR SESSION', { code: codeToUse });
 
     // 1. Mandatory Supabase Session Resolution by join code
     let dbSession = null;
@@ -444,19 +462,21 @@ class RealtimeSessionManager {
         .limit(1)
         .maybeSingle();
 
+      console.log('[BMC] SESSION LOOKUP RESULT', { data, error: sessErr });
+
       if (sessErr) {
-        console.error('Supabase session fetch error:', sessErr);
+        console.error('[BMC] Supabase session fetch error:', sessErr);
       }
       dbSession = data;
     } catch (e) {
-      console.error('Exception fetching session from Supabase:', e);
+      console.error('[BMC] Exception fetching session from Supabase:', e);
     }
 
     // If session row is missing in Supabase, auto-create it
     if (!dbSession) {
-      console.warn(`Session "${codeToUse}" not found in Supabase. Auto-creating session...`);
+      console.warn(`[BMC] Session "${codeToUse}" not found in Supabase. Auto-creating session...`);
       const autoSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-      const { error: createErr } = await supabase.from('sessions').insert({
+      const { data: createdSess, error: createErr } = await supabase.from('sessions').insert({
         id: autoSessionId,
         join_code: codeToUse,
         status: 'JOINING',
@@ -466,18 +486,19 @@ class RealtimeSessionManager {
         study_duration: 10 * 60,
         presentation_duration: 3 * 60,
         scoring_open: false
-      });
+      }).select().maybeSingle();
+
+      console.log('[BMC] AUTO-PROVISION SESSION RESULT', { data: createdSess, error: createErr });
 
       if (createErr) {
-        console.error('Error auto-creating session in Supabase:', createErr);
+        console.error('[BMC] Error auto-creating session in Supabase:', createErr);
         throw new Error(`Unable to join session "${codeToUse}". Session has not been created by host.`);
       }
 
+      dbSession = createdSess || { id: autoSessionId, join_code: codeToUse, status: 'JOINING' };
       this.data.session = {
         ...this.data.session,
-        id: autoSessionId,
-        join_code: codeToUse,
-        status: 'JOINING'
+        ...dbSession
       };
     } else {
       this.data.session = {
@@ -486,7 +507,7 @@ class RealtimeSessionManager {
       };
     }
 
-    console.log(`STUDENT SESSION ID:\n${this.data.session.id}`);
+    console.log(`[BMC] STUDENT SESSION ID:\n${this.data.session.id}`);
 
     // 2. Session Validation
     if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
@@ -507,7 +528,7 @@ class RealtimeSessionManager {
         .update({ department: existing.department, status: existing.status, last_seen_at: existing.last_seen_at })
         .eq('id', existing.id);
       if (updateErr) {
-        console.error('Supabase participant update error:', updateErr);
+        console.error('[BMC] Supabase participant update error:', updateErr);
         throw new Error('Unable to update join status. Please try again.');
       }
       this.saveAndBroadcast();
@@ -525,6 +546,12 @@ class RealtimeSessionManager {
       is_demo: false
     };
 
+    console.log('[BMC] INSERTING PARTICIPANT', {
+      name: participant.name,
+      dept: participant.department,
+      session_id: participant.session_id
+    });
+
     // 4. Database Insert via Supabase (MUST WAIT and verify response)
     const { error: insertErr } = await supabase.from('participants').insert({
       id: participant.id,
@@ -537,8 +564,10 @@ class RealtimeSessionManager {
       is_demo: false
     });
 
+    console.log('[BMC] PARTICIPANT INSERT RESULT', { id: participant.id, error: insertErr });
+
     if (insertErr) {
-      console.error('Supabase participant INSERT error:', insertErr);
+      console.error('[BMC] PARTICIPANT INSERT FAILED:', insertErr);
       throw new Error(insertErr.message || 'Unable to join the session. Please try again.');
     }
 

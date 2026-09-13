@@ -86,7 +86,7 @@ CREATE POLICY "Allow public read access to sessions"
 ON public.sessions FOR SELECT USING (true);
 
 CREATE POLICY "Allow host create/update sessions"
-ON public.sessions FOR ALL USING (true);
+ON public.sessions FOR ALL USING (true) WITH CHECK (true);
 
 -- PARTICIPANTS POLICIES
 CREATE POLICY "Allow public read access to participants"
