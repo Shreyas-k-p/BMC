@@ -23,6 +23,9 @@ import { StudentLeaderboard } from './components/student/StudentLeaderboard';
 export const App: React.FC = () => {
   const { session, participants, groups, peerScores, lobbyMessages = [], actions } = useRealtimeSession();
 
+  // Print build version on render
+  console.log('[BMC BUILD VERSION] HOST-SYNC-FIX-2026-09-13-V2');
+
   // Extract session code from URL path /join/:sessionCode or query param ?join=
   const [urlSessionCode] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -81,7 +84,7 @@ export const App: React.FC = () => {
   // Automatically sync session ID with Supabase ONLY for Student mode via URL
   useEffect(() => {
     if (appMode === 'STUDENT' && urlSessionCode) {
-      actions.syncSessionByJoinCode(urlSessionCode, 'STUDENT');
+      actions.syncSessionByJoinCode(urlSessionCode);
     }
   }, [appMode, urlSessionCode]);
 
