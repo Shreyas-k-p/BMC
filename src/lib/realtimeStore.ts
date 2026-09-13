@@ -3,7 +3,7 @@ import { Session, Participant, Group, PeerScore, SessionState, Department, Lobby
 import { getRandomizedProducts } from './products';
 import { generateBalancedGroups } from './grouping';
 import { generateDemoParticipants } from './mockData';
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, supabaseUrl } from './supabase';
 
 const LOCAL_STORAGE_KEY = 'bmc_live_session_store_v2';
 const BROADCAST_CHANNEL_NAME = 'bmc_live_realtime_channel_v2';
@@ -342,6 +342,7 @@ class RealtimeSessionManager {
     const code = joinCode?.toUpperCase().trim() || 'BMC' + Math.floor(100 + Math.random() * 900);
     const newSessionId = generateUUID();
 
+    console.log('[BMC] SUPABASE URL:', supabaseUrl);
     console.log('[BMC] CREATING SESSION', { code, id: newSessionId });
 
     if (!isSupabaseConfigured || !supabase) {
@@ -372,8 +373,13 @@ class RealtimeSessionManager {
     console.log('[BMC] SESSION INSERT RESULT', { data, error });
 
     if (error || !data) {
-      console.error('[BMC] SESSION CREATION FAILED IN SUPABASE:', error);
-      throw new Error('Unable to create session: ' + (error?.message || 'Database rejected insertion'));
+      console.error('[BMC] SESSION CREATION FAILED IN SUPABASE:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint
+      });
+      throw new Error(`Unable to create session: ${error?.message || 'Database rejected insertion'}`);
     }
 
     // Only if error === null AND data exists:
