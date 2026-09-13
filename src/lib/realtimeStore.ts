@@ -16,12 +16,51 @@ interface StoreData {
   lobbyMessages: LobbyMessage[];
 }
 
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+function toDbStatus(status: SessionState): string {
+  switch (status) {
+    case 'LOBBY':
+    case 'JOINING':
+    case 'GROUPING':
+    case 'GROUPS_READY':
+    case 'CAPTAIN_SELECTION':
+    case 'PRODUCT_REVEAL':
+    case 'PRODUCT_ASSIGNMENT':
+      return 'LOBBY';
+    case 'PREPARATION':
+      return 'PREPARATION';
+    case 'STUDY_TIME':
+      return 'STUDY';
+    case 'PRESENTATION_ORDER':
+    case 'PRESENTATION':
+      return 'PRESENTATION';
+    case 'SCORING':
+      return 'SCORING';
+    case 'LEADERBOARD':
+    case 'FINAL_RESULTS':
+      return 'LEADERBOARD';
+    case 'COMPLETED':
+      return 'COMPLETED';
+    default:
+      return 'LOBBY';
+  }
+}
+
 function getDefaultStore(joinCode = 'BMC2026'): StoreData {
   return {
     session: {
-      id: 'sess_' + Date.now(),
+      id: generateUUID(),
       code: joinCode,
-      join_code: joinCode,
       status: 'LOBBY',
       host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
       created_at: new Date().toISOString(),
@@ -68,6 +107,7 @@ class RealtimeSessionManager {
 
     if (isSupabaseConfigured && supabase) {
       this.initSupabaseSubscriptions();
+      this.startHeartbeatPolling();
     }
   }
 
@@ -132,8 +172,14 @@ class RealtimeSessionManager {
 
   private handleSessionRealtimeEvent(payload: any) {
     if (payload.new && payload.new.id === this.data.session.id) {
-      this.data.session.status = payload.new.status as SessionState;
-      if (payload.new.status !== 'LOBBY' && payload.new.status !== 'JOINING') {
+      // Map DB status back if needed, preserving local detailed UI state if in lobby group
+      const newStatus = payload.new.status as SessionState;
+      if (newStatus === 'LOBBY') {
+        if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
+          this.data.session.status = 'LOBBY';
+        }
+      } else {
+        this.data.session.status = newStatus;
         this.data.lobbyMessages = [];
       }
       this.saveAndBroadcast();
@@ -149,8 +195,8 @@ class RealtimeSessionManager {
   private async pullFromSupabase() {
     if (!supabase) return;
     try {
-      const activeCode = this.data.session.code || this.data.session.join_code;
-      // 1. Fetch session matching current code or ID
+      const activeCode = this.data.session.code;
+      // 1. Fetch session matching current code
       const { data: session } = await supabase
         .from('sessions')
         .select('*')
@@ -163,8 +209,7 @@ class RealtimeSessionManager {
         this.data.session = {
           ...this.data.session,
           ...session,
-          code: session.code || activeCode,
-          join_code: session.code || activeCode
+          code: session.code || activeCode
         };
       }
 
@@ -193,36 +238,6 @@ class RealtimeSessionManager {
       this.saveAndBroadcast();
     } catch(e) {
       console.error('Error pulling data from Supabase:', e);
-    }
-  }
-
-  private async ensureSessionExistsInSupabase() {
-    if (!supabase) return;
-    try {
-      const { data: existing } = await supabase
-        .from('sessions')
-        .select('id')
-        .eq('id', this.data.session.id)
-        .maybeSingle();
-
-      if (!existing) {
-        const activeCode = this.data.session.code || this.data.session.join_code;
-        const { error } = await supabase.from('sessions').insert({
-          id: this.data.session.id,
-          code: activeCode,
-          status: this.data.session.status,
-          host_key: this.data.session.host_key,
-          created_at: this.data.session.created_at,
-          preparation_duration: this.data.session.preparation_duration,
-          study_duration: this.data.session.study_duration,
-          presentation_duration: this.data.session.presentation_duration
-        });
-        if (error) {
-          console.error('Error inserting session in Supabase:', error);
-        }
-      }
-    } catch(e) {
-      console.error('Error ensuring session in Supabase:', e);
     }
   }
 
@@ -284,7 +299,6 @@ class RealtimeSessionManager {
     if (!joinCode) return null;
     const code = joinCode.toUpperCase().trim();
     this.data.session.code = code;
-    this.data.session.join_code = code;
 
     console.log('[BMC] SYNCING SESSION BY CODE', { code, mode });
 
@@ -304,8 +318,7 @@ class RealtimeSessionManager {
           this.data.session = {
             ...this.data.session,
             ...existingSession,
-            code: existingSession.code || code,
-            join_code: existingSession.code || code
+            code: existingSession.code || code
           };
           if (mode === 'HOST') {
             console.log(`[BMC] HOST SESSION ID:\n${existingSession.id}`);
@@ -327,7 +340,7 @@ class RealtimeSessionManager {
 
   public async createNewSession(joinCode?: string) {
     const code = joinCode?.toUpperCase().trim() || 'BMC' + Math.floor(100 + Math.random() * 900);
-    const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const newSessionId = generateUUID();
 
     console.log('[BMC] CREATING SESSION', { code, id: newSessionId });
 
@@ -339,7 +352,6 @@ class RealtimeSessionManager {
     const newSessionObj: Session = {
       id: newSessionId,
       code: code,
-      join_code: code,
       status: 'JOINING',
       host_key: 'host_key_' + Math.random().toString(36).substring(2, 9),
       created_at: new Date().toISOString(),
@@ -349,23 +361,19 @@ class RealtimeSessionManager {
       scoring_open: false
     };
 
-    // Mandatory Host Supabase INSERT / UPSERT using sessions.code
-    const { data, error } = await supabase.from('sessions').upsert({
+    // Mandatory Host Supabase INSERT using sessions.code and valid status enum ('LOBBY')
+    const dbStatus = toDbStatus(newSessionObj.status);
+    const { data, error } = await supabase.from('sessions').insert({
       id: newSessionObj.id,
       code: newSessionObj.code,
-      status: newSessionObj.status,
-      host_key: newSessionObj.host_key,
-      created_at: newSessionObj.created_at,
-      preparation_duration: newSessionObj.preparation_duration,
-      study_duration: newSessionObj.study_duration,
-      presentation_duration: newSessionObj.presentation_duration
-    }, { onConflict: 'code' }).select().maybeSingle();
+      status: dbStatus
+    }).select().single();
 
     console.log('[BMC] SESSION INSERT RESULT', { data, error });
 
     if (error || !data) {
       console.error('[BMC] SESSION CREATION FAILED IN SUPABASE:', error);
-      throw new Error('Unable to create session. Please check the database connection.');
+      throw new Error('Unable to create session: ' + (error?.message || 'Database rejected insertion'));
     }
 
     // Only if error === null AND data exists:
@@ -373,8 +381,7 @@ class RealtimeSessionManager {
       session: {
         ...newSessionObj,
         ...data,
-        code: data.code || code,
-        join_code: data.code || code
+        code: data.code || code
       },
       participants: [],
       groups: [],
@@ -396,7 +403,8 @@ class RealtimeSessionManager {
 
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from('sessions').update({ status }).eq('id', this.data.session.id);
+        const dbStatus = toDbStatus(status);
+        await supabase.from('sessions').update({ status: dbStatus }).eq('id', this.data.session.id);
       } catch(e) {
         console.error('[BMC] Error updating session status in Supabase:', e);
       }
@@ -415,7 +423,7 @@ class RealtimeSessionManager {
     if (!trimmed) return;
 
     const msg: LobbyMessage = {
-      id: 'msg_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+      id: generateUUID(),
       session_id: this.data.session.id,
       participant_id: participantId,
       participant_name: participantName.trim(),
@@ -452,14 +460,14 @@ class RealtimeSessionManager {
       throw new Error('Name is required.');
     }
 
-    const codeToUse = (targetJoinCode || this.data.session.code || this.data.session.join_code || 'BMC2026').toUpperCase().trim();
+    const codeToUse = (targetJoinCode || this.data.session.code || 'BMC2026').toUpperCase().trim();
 
     if (!isSupabaseConfigured || !supabase) {
       console.error('[BMC] Supabase is not configured on this environment.');
       throw new Error('Unable to join session. Realtime database connection is not configured.');
     }
 
-    console.log('[BMC] LOOKING FOR SESSION', { code: codeToUse });
+    console.log('[BMC] LOOKING FOR SESSION BY CODE', { code: codeToUse });
 
     // 1. Mandatory Supabase Session Resolution by code (STRICT: NO AUTO-CREATION FROM STUDENT)
     let dbSession = null;
@@ -472,7 +480,7 @@ class RealtimeSessionManager {
         .limit(1)
         .maybeSingle();
 
-      console.log('[BMC] SESSION LOOKUP RESULT', { data, error: sessErr });
+      console.log('[BMC] STUDENT SESSION LOOKUP RESULT', { data, error: sessErr });
 
       if (sessErr) {
         console.error('[BMC] Supabase session fetch error:', sessErr);
@@ -491,13 +499,12 @@ class RealtimeSessionManager {
     this.data.session = {
       ...this.data.session,
       ...dbSession,
-      code: dbSession.code || codeToUse,
-      join_code: dbSession.code || codeToUse
+      code: dbSession.code || codeToUse
     };
 
     console.log(`[BMC] STUDENT SESSION ID:\n${this.data.session.id}`);
 
-    // 2. Session Validation (Status must be LOBBY or JOINING)
+    // 2. Session Validation (Status must be LOBBY or JOINING in UI)
     if (this.data.session.status !== 'LOBBY' && this.data.session.status !== 'JOINING') {
       throw new Error('Session is no longer accepting new participants.');
     }
@@ -524,7 +531,7 @@ class RealtimeSessionManager {
     }
 
     const participant: Participant = {
-      id: 'p_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
+      id: generateUUID(),
       session_id: this.data.session.id,
       name: trimmedName,
       department: department,
@@ -535,6 +542,7 @@ class RealtimeSessionManager {
     };
 
     console.log('[BMC] INSERTING PARTICIPANT', {
+      id: participant.id,
       name: participant.name,
       dept: participant.department,
       session_id: participant.session_id
@@ -569,7 +577,7 @@ class RealtimeSessionManager {
     const demos = generateDemoParticipants(count);
     demos.forEach(async (d) => {
       const participant: Participant = {
-        id: 'p_demo_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
+        id: generateUUID(),
         session_id: this.data.session.id,
         name: d.name.trim(),
         department: d.department,
@@ -798,7 +806,7 @@ class RealtimeSessionManager {
     );
 
     const newScore: PeerScore = {
-      id: 'score_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      id: generateUUID(),
       session_id: this.data.session.id,
       group_id: groupId,
       evaluator_participant_id: captainParticipantId,

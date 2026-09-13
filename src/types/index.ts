@@ -67,9 +67,8 @@ export interface Group {
 export interface Session {
   id: string;
   code: string;
-  join_code: string;
   status: SessionState;
-  host_key: string;
+  host_key?: string;
   created_at: string;
   preparation_started_at?: string | null;
   preparation_duration: number; // 900s for 15 min BMC prep

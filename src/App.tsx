@@ -75,7 +75,7 @@ export const App: React.FC = () => {
   }, [participants, currentParticipant]);
 
   const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
-  const activeSessionCode = urlSessionCode || session.join_code;
+  const activeSessionCode = urlSessionCode || session.code;
   const studentJoinUrl = `${origin}/join/${activeSessionCode}`;
 
   // Automatically sync session ID with Supabase based on join code and mode
@@ -128,7 +128,7 @@ export const App: React.FC = () => {
         <div className="min-h-screen flex flex-col">
           {session.status !== 'LOBBY' && (
             <HostControlBar
-              joinCode={session.join_code}
+              joinCode={session.code}
               participantCount={participants.length}
               currentStage={session.status}
               onStageChange={(newStage) => actions.setSessionState(newStage)}
@@ -147,7 +147,7 @@ export const App: React.FC = () => {
             {/* STAGE: JOINING (QR + LIVE PARTICIPANTS) */}
             {session.status === 'JOINING' && (
               <HostQRJoin
-                joinCode={session.join_code}
+                joinCode={session.code}
                 joinUrl={studentJoinUrl}
                 participants={participants}
                 lobbyMessages={lobbyMessages}
@@ -155,7 +155,7 @@ export const App: React.FC = () => {
                 onAddDemoStudents={(count) => actions.addDemoStudents(count)}
                 onRemoveParticipant={(id) => actions.removeParticipant(id)}
                 onProceedToGrouping={() => handleStartGroupingAnim()}
-                onClearAll={() => actions.createNewSession(session.join_code)}
+                onClearAll={() => actions.createNewSession(session.code)}
               />
             )}
 
@@ -275,7 +275,7 @@ export const App: React.FC = () => {
           ) : session.status === 'LOBBY' || session.status === 'JOINING' ? (
             <StudentLobby
               participant={currentParticipant}
-              joinCode={session.join_code}
+              joinCode={session.code}
               sessionStatus={session.status}
               messages={lobbyMessages}
               onSendMessage={(pId, pName, text) => actions.sendLobbyMessage(pId, pName, text)}
@@ -289,7 +289,7 @@ export const App: React.FC = () => {
             ) : (
               <StudentLobby
                 participant={currentParticipant}
-                joinCode={session.join_code}
+                joinCode={session.code}
                 sessionStatus={session.status}
                 messages={lobbyMessages}
                 onSendMessage={(pId, pName, text) => actions.sendLobbyMessage(pId, pName, text)}
@@ -336,7 +336,7 @@ export const App: React.FC = () => {
           ) : (
             <StudentLobby
               participant={currentParticipant}
-              joinCode={session.join_code}
+              joinCode={session.code}
               sessionStatus={session.status}
               messages={lobbyMessages}
               onSendMessage={(pId, pName, text) => actions.sendLobbyMessage(pId, pName, text)}
